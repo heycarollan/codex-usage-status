@@ -1,0 +1,15 @@
+.vscode/**
+.github/**
+.editorconfig
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+docs/**
+test/**
+dist/test/**
+src/**
+node_modules/**
+.gitignore
+package-lock.json
+tsconfig.json
+*.vsix
+**/*.map

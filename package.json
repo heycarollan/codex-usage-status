@@ -1,0 +1,127 @@
+{
+  "name": "codex-usage-status",
+  "displayName": "Codex Usage Status",
+  "description": "Show Codex 5-hour and 7-day usage in the VS Code status bar.",
+  "version": "0.1.0",
+  "publisher": "thiscommonuser",
+  "author": {
+    "name": "thiscommonuser"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "openai",
+    "usage",
+    "rate limit",
+    "status bar"
+  ],
+  "galleryBanner": {
+    "color": "#121212",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:codexUsage.refresh",
+    "onCommand:codexUsage.showDetails",
+    "onCommand:codexUsage.restartAppServer",
+    "onCommand:codexUsage.resetUsage",
+    "onCommand:codexUsage.openSettings"
+  ],
+  "main": "./dist/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codexUsage.refresh",
+        "title": "Codex Usage: Refresh"
+      },
+      {
+        "command": "codexUsage.showDetails",
+        "title": "Codex Usage: Show Details"
+      },
+      {
+        "command": "codexUsage.restartAppServer",
+        "title": "Codex Usage: Restart App Server"
+      },
+      {
+        "command": "codexUsage.resetUsage",
+        "title": "Codex Usage: Use Reset Credit"
+      },
+      {
+        "command": "codexUsage.openSettings",
+        "title": "Codex Usage: Open Settings"
+      }
+    ],
+    "configuration": {
+      "title": "Codex Usage Status",
+      "properties": {
+        "codexUsage.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 5,
+          "description": "How often to refresh Codex usage in the status bar."
+        },
+        "codexUsage.codexExecutable": {
+          "type": "string",
+          "default": "codex",
+          "description": "Path or command name for the Codex CLI executable."
+        },
+        "codexUsage.showExtraBuckets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show model-specific Codex usage buckets in the details tooltip and command."
+        },
+        "codexUsage.statusFormat": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "remaining"
+          ],
+          "default": "compact",
+          "description": "Controls the status bar text format."
+        },
+        "codexUsage.warnAtPercent": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Mark the status bar as warning when either primary Codex window reaches this percentage."
+        },
+        "codexUsage.requestTimeoutMs": {
+          "type": "number",
+          "default": 12000,
+          "minimum": 1000,
+          "description": "Timeout for Codex app-server JSON-RPC requests."
+        },
+        "codexUsage.notifyTurnComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show VS Code notifications for Codex turn completion events visible to this app-server connection."
+        },
+        "codexUsage.notifyNeedsInput": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show VS Code notifications when Codex asks this app-server connection for user input or approval."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "test": "npm run compile && node --test dist/test/*.test.js",
+    "package": "vsce package --allow-missing-repository --out dist/codex-usage-status-0.1.0.vsix",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.7.2"
+  }
+}
