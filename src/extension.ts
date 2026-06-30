@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import * as vscode from "vscode";
 import { CodexAppServerClient } from "./codexAppServerClient";
 import { getSettings } from "./config";
@@ -97,7 +98,12 @@ function createClient(): void {
 
       const status = event.status ? ` (${event.status})` : "";
       const duration = typeof event.durationMs === "number" ? ` in ${formatDuration(event.durationMs)}` : "";
-      void vscode.window.showInformationMessage(`Codex chat complete${status}${duration}.`, "Show Usage").then((action) => {
+      void showNotification(
+        "info",
+        "Codex chat complete",
+        `Codex chat complete${status}${duration}.`,
+        ["Show Usage"]
+      ).then((action) => {
         if (action === "Show Usage") {
           void showDetails();
         }
@@ -115,7 +121,7 @@ function createClient(): void {
       notifiedInputRequests.add(key);
 
       const message = event.detail ? `${event.title}: ${event.detail}` : event.title;
-      void vscode.window.showWarningMessage(message, "Open Codex", "Show Usage").then((action) => {
+      void showNotification("warning", "Codex needs input", message, ["Open Codex", "Show Usage"], true).then((action) => {
         if (action === "Open Codex") {
           void vscode.commands.executeCommand("chatgpt.openSidebar");
         } else if (action === "Show Usage") {
@@ -132,7 +138,7 @@ function schedulePolling(): void {
     clearInterval(refreshTimer);
   }
 
-  const intervalMs = Math.max(15, settings.refreshIntervalSeconds) * 1000;
+  const intervalMs = Math.max(5, settings.refreshIntervalSeconds) * 1000;
   refreshTimer = setInterval(() => {
     void refreshUsage();
   }, intervalMs);
@@ -289,4 +295,69 @@ function formatDuration(durationMs: number): string {
   }
 
   return `${minutes}m ${seconds}s`;
+}
+
+async function showNotification(
+  kind: "info" | "warning",
+  title: string,
+  message: string,
+  actions: string[] = [],
+  alwaysShowActions = false
+): Promise<string | undefined> {
+  const wantsNative = settings.notificationMode === "native" || settings.notificationMode === "both";
+  const nativeDelivered = wantsNative ? await showNativeNotification(kind, title, message) : false;
+  const wantsVscode =
+    settings.notificationMode === "vscode" ||
+    settings.notificationMode === "both" ||
+    !nativeDelivered ||
+    (alwaysShowActions && actions.length > 0);
+
+  if (!wantsVscode) {
+    return undefined;
+  }
+
+  if (kind === "warning") {
+    return vscode.window.showWarningMessage(message, ...actions);
+  }
+
+  return vscode.window.showInformationMessage(message, ...actions);
+}
+
+function showNativeNotification(kind: "info" | "warning", title: string, message: string): Promise<boolean> {
+  if (process.platform !== "linux") {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const proc = spawn(
+      "notify-send",
+      [
+        "--app-name=Codex Usage Status",
+        "--icon=code",
+        `--urgency=${kind === "warning" ? "normal" : "low"}`,
+        title,
+        message
+      ],
+      {
+        stdio: "ignore",
+        detached: true
+      }
+    );
+
+    proc.once("error", (error) => {
+      output.appendLine(`Native notification failed: ${error.message}`);
+      resolve(false);
+    });
+
+    proc.once("exit", (code) => {
+      if (code === 0) {
+        resolve(true);
+      } else {
+        output.appendLine(`Native notification failed with exit code ${code ?? "unknown"}.`);
+        resolve(false);
+      }
+    });
+
+    proc.unref();
+  });
 }

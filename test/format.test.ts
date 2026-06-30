@@ -11,7 +11,8 @@ const settings: ExtensionSettings = {
   warnAtPercent: 90,
   requestTimeoutMs: 12000,
   notifyTurnComplete: true,
-  notifyNeedsInput: true
+  notifyNeedsInput: true,
+  notificationMode: "native"
 };
 
 test("formats missing windows as unknown", () => {

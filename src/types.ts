@@ -121,4 +121,5 @@ export interface ExtensionSettings {
   requestTimeoutMs: number;
   notifyTurnComplete: boolean;
   notifyNeedsInput: boolean;
+  notificationMode: "native" | "vscode" | "both";
 }

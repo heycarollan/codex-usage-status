@@ -13,7 +13,7 @@ The extension talks to the local Codex app-server and reads:
 - Readable hover tooltip with separate usage, reset, account, and token sections.
 - Quick Pick details view for Codex and model-specific buckets.
 - Manual refresh and app-server restart commands.
-- Optional notifications for app-server-visible Codex completion and input/approval events.
+- Optional native Linux and VS Code notifications for app-server-visible Codex completion and input/approval events.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available.
 - Configurable refresh interval, warning threshold, and executable path.
 
@@ -43,10 +43,13 @@ The extension talks to the local Codex app-server and reads:
 | `codexUsage.requestTimeoutMs` | `12000` | Timeout for app-server requests. |
 | `codexUsage.notifyTurnComplete` | `true` | Notify for turn completion events visible to this app-server connection. |
 | `codexUsage.notifyNeedsInput` | `true` | Notify when this app-server connection is asked for input or approval. |
+| `codexUsage.notificationMode` | `native` | Use Linux desktop notifications, VS Code notifications, or both. |
 
 ## Notifications
 
-Codex Usage Status listens for app-server notifications on its own Codex app-server connection. Completion and input notifications fire for events visible to that connection. The official Codex extension may use a separate private app-server process, so cross-panel notifications depend on whether Codex exposes those events to this companion connection.
+Codex Usage Status listens for app-server notifications on its own Codex app-server connection. On Linux, `native` mode sends desktop notifications with `notify-send` and falls back to VS Code if native notifications are unavailable. Input/approval notifications also keep VS Code action buttons available.
+
+Completion and input notifications fire for events visible to this extension's app-server connection. The official Codex extension may use a separate private app-server process, so cross-panel notifications depend on whether Codex exposes those events to this companion connection.
 
 ## Privacy
 

@@ -101,12 +101,22 @@
         "codexUsage.notifyTurnComplete": {
           "type": "boolean",
           "default": true,
-          "description": "Show VS Code notifications for Codex turn completion events visible to this app-server connection."
+          "description": "Show notifications for Codex turn completion events visible to this app-server connection."
         },
         "codexUsage.notifyNeedsInput": {
           "type": "boolean",
           "default": true,
-          "description": "Show VS Code notifications when Codex asks this app-server connection for user input or approval."
+          "description": "Show notifications when Codex asks this app-server connection for user input or approval."
+        },
+        "codexUsage.notificationMode": {
+          "type": "string",
+          "enum": [
+            "native",
+            "vscode",
+            "both"
+          ],
+          "default": "native",
+          "description": "Controls notification delivery. Native uses Linux desktop notifications through notify-send and falls back to VS Code when unavailable."
         }
       }
     }
