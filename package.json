@@ -2,7 +2,7 @@
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
   "description": "Show Codex 5-hour and 7-day usage in the VS Code status bar.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "thiscommonuser",
   "author": {
     "name": "thiscommonuser"
@@ -125,7 +125,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --allow-missing-repository --out dist/codex-usage-status-0.1.0.vsix",
+    "package": "vsce package --allow-missing-repository --out dist/codex-usage-status-0.1.1.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
