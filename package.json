@@ -1,8 +1,8 @@
 {
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
-  "description": "Keep Codex 5-hour and 7-day usage, reset credits, and notifications in the VS Code status bar.",
-  "version": "0.1.2",
+  "description": "Track Codex 5-hour and 7-day usage, see reset credits, and use a reset credit from VS Code.",
+  "version": "0.1.3",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -14,6 +14,8 @@
     "openai",
     "usage",
     "rate limit",
+    "reset credits",
+    "quota",
     "status bar",
     "notifications",
     "synapticraft"
@@ -143,7 +145,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-0.1.2.vsix",
+    "package": "vsce package --out dist/codex-usage-status-0.1.3.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@
 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/synapticraft.codex-usage-status?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status)
 
-Shows account-level Codex usage in the VS Code status bar.
+Shows account-level Codex usage in the VS Code status bar, including reset timing, available reset credits, and a guarded action to use a reset credit without leaving your editor.
 
 Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status), or search for `Codex Usage Status` in the Extensions view.
 
@@ -14,12 +14,16 @@ The extension talks to the local Codex app-server and reads:
 ## Features
 
 - Status bar display: `Codex: 5h 7% · 7d 9%`
-- Readable hover tooltip with separate usage, reset, account, and token sections.
+- Readable hover tooltip with separate usage windows, reset times, reset credits, account, and token sections.
 - Quick Pick details view for Codex and model-specific buckets.
 - Manual refresh and app-server restart commands.
 - Optional native Linux and VS Code notifications for high usage, app-server-visible Codex completion, and input/approval events.
-- Reset-credit action with a confirmation prompt when Codex reports reset credits are available.
+- Reset-credit action with a confirmation prompt when Codex reports reset credits are available, so you can apply one from VS Code instead of only seeing that it exists.
 - Configurable refresh interval, warning threshold, and executable path.
+
+## Reset credits
+
+Codex Usage Status does more than display when your 5-hour and 7-day windows reset. When Codex reports reset credits for your account, the extension shows how many are available and exposes `Codex Usage: Use Reset Credit` in the Command Palette and details Quick Pick. The command asks for confirmation before consuming a reset credit, then refreshes usage so you can see the new state immediately.
 
 ## Commands
 

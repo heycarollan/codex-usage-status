@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Clarify that reset credits can be viewed and used from VS Code, not just displayed.
+- Update Marketplace description keywords around reset credits and quota monitoring.
+
 ## 0.1.2
 
 - Prepare Marketplace packaging with Synapticraft publisher metadata and icon.
