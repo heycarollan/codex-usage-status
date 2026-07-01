@@ -2,6 +2,7 @@
 
 ## 0.1.2
 
+- Prepare Marketplace packaging with Synapticraft publisher metadata and icon.
 - Add usage warning notifications when 5-hour or 7-day usage crosses the configured warning threshold.
 - Make native Linux informational notifications visible by using normal urgency.
 - Remove internal publishing notes from the public README.

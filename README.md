@@ -1,6 +1,10 @@
 # Codex Usage Status
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/synapticraft.codex-usage-status?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status)
+
 Shows account-level Codex usage in the VS Code status bar.
+
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status), or search for `Codex Usage Status` in the Extensions view.
 
 The extension talks to the local Codex app-server and reads:
 

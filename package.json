@@ -1,11 +1,12 @@
 {
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
-  "description": "Show Codex 5-hour and 7-day usage in the VS Code status bar.",
+  "description": "Keep Codex 5-hour and 7-day usage, reset credits, and notifications in the VS Code status bar.",
   "version": "0.1.2",
-  "publisher": "thiscommonuser",
+  "publisher": "synapticraft",
   "author": {
-    "name": "thiscommonuser"
+    "name": "Synapticraft",
+    "url": "https://synapticraft-studio.com"
   },
   "license": "MIT",
   "keywords": [
@@ -13,12 +14,24 @@
     "openai",
     "usage",
     "rate limit",
-    "status bar"
+    "status bar",
+    "notifications",
+    "synapticraft"
   ],
+  "icon": "assets/synapticraft-icon.png",
   "galleryBanner": {
-    "color": "#121212",
+    "color": "#006b5a",
     "theme": "dark"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heycarollan/codex-usage-status.git"
+  },
+  "homepage": "https://github.com/heycarollan/codex-usage-status#readme",
+  "bugs": {
+    "url": "https://github.com/heycarollan/codex-usage-status/issues"
+  },
+  "pricing": "Free",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -130,7 +143,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --allow-missing-repository --out dist/codex-usage-status-0.1.2.vsix",
+    "package": "vsce package --out dist/codex-usage-status-0.1.2.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
