@@ -29,6 +29,19 @@ export interface CodexTurnCompletedEvent {
   turnId: string | null;
   status: string | null;
   durationMs: number | null;
+  completedAt: number | null;
+}
+
+export interface CodexTurnSnapshot {
+  id: string;
+  status: string | null;
+  durationMs: number | null;
+  completedAt: number | null;
+}
+
+export interface CodexThreadSnapshot {
+  id: string;
+  turns: CodexTurnSnapshot[];
 }
 
 export interface CodexNeedsUserInputEvent {
@@ -68,6 +81,25 @@ export class CodexAppServerClient {
     return this.request<ConsumeAccountRateLimitResetCreditResponse>("account/rateLimitResetCredit/consume", {
       idempotencyKey
     });
+  }
+
+  async listRecentThreads(limit: number): Promise<CodexThreadSnapshot[]> {
+    await this.ensureInitialized();
+    const response = await this.request<{ data?: unknown[] }>("thread/list", { limit });
+    const threads = Array.isArray(response.data) ? response.data : [];
+    return threads.map(parseThreadSnapshot).filter((thread): thread is CodexThreadSnapshot => thread !== null);
+  }
+
+  async readThread(threadId: string): Promise<CodexThreadSnapshot | null> {
+    await this.ensureInitialized();
+    const response = await this.request<{ data?: unknown[] }>("thread/turns/list", {
+      threadId,
+      itemsView: "summary"
+    });
+    const turns = Array.isArray(response.data)
+      ? response.data.map(parseTurnSnapshot).filter((turn): turn is CodexTurnSnapshot => turn !== null)
+      : [];
+    return { id: threadId, turns };
   }
 
   async restart(): Promise<void> {
@@ -280,15 +312,55 @@ function isNeedsInputMethod(method: string): boolean {
   );
 }
 
-function parseTurnCompletedEvent(params: unknown): CodexTurnCompletedEvent {
+export function parseTurnCompletedEvent(params: unknown): CodexTurnCompletedEvent {
   const value = asRecord(params);
   const turn = asRecord(value.turn);
+  const thread = asRecord(value.thread);
 
   return {
-    threadId: typeof value.threadId === "string" ? value.threadId : "unknown",
-    turnId: typeof turn.id === "string" ? turn.id : null,
-    status: typeof turn.status === "string" ? turn.status : null,
-    durationMs: typeof turn.durationMs === "number" ? turn.durationMs : null
+    threadId: firstString(value.threadId, value.thread_id, thread.id) ?? "unknown",
+    turnId: firstString(value.turnId, value.turn_id, turn.id),
+    status: readStatus(turn.status ?? value.status),
+    durationMs: firstNumber(turn.durationMs, turn.duration_ms, value.durationMs, value.duration_ms),
+    completedAt: firstNumber(
+      turn.completedAt,
+      turn.completed_at,
+      turn.completedAtMs,
+      turn.completed_at_ms,
+      value.completedAt,
+      value.completed_at,
+      value.completedAtMs,
+      value.completed_at_ms
+    )
+  };
+}
+
+export function parseThreadSnapshot(value: unknown): CodexThreadSnapshot | null {
+  const thread = asRecord(value);
+  const id = firstString(thread.id, thread.threadId, thread.thread_id);
+  if (!id) {
+    return null;
+  }
+
+  const turns = Array.isArray(thread.turns)
+    ? thread.turns.map(parseTurnSnapshot).filter((turn): turn is CodexTurnSnapshot => turn !== null)
+    : [];
+
+  return { id, turns };
+}
+
+function parseTurnSnapshot(value: unknown): CodexTurnSnapshot | null {
+  const turn = asRecord(value);
+  const id = firstString(turn.id, turn.turnId, turn.turn_id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    status: readStatus(turn.status),
+    durationMs: firstNumber(turn.durationMs, turn.duration_ms),
+    completedAt: firstNumber(turn.completedAt, turn.completed_at, turn.completedAtMs, turn.completed_at_ms)
   };
 }
 
@@ -321,4 +393,31 @@ function parseNeedsUserInputEvent(method: string, params: unknown): CodexNeedsUs
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function firstNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function readStatus(value: unknown): string | null {
+  if (typeof value === "string" && value) {
+    return value;
+  }
+
+  const status = asRecord(value);
+  return firstString(status.type, status.status, status.state);
 }

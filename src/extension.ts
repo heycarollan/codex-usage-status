@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
 import * as vscode from "vscode";
-import { CodexAppServerClient } from "./codexAppServerClient";
+import { CodexAppServerClient, type CodexTurnCompletedEvent } from "./codexAppServerClient";
 import { getSettings } from "./config";
 import { buildUsageQuickPickItems, formatStatus } from "./format";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
+
+const THREAD_COMPLETION_POLL_LIMIT = 8;
 
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
@@ -17,6 +19,10 @@ let settings: ExtensionSettings;
 const notifiedTurns = new Set<string>();
 const notifiedInputRequests = new Set<string>();
 let activeUsageAlertKeys = new Set<string>();
+let threadCompletionPollBootstrapped = false;
+let threadCompletionPollInFlight = false;
+let threadCompletionPollErrorLogged = false;
+let fallbackTurnNotificationSequence = 0;
 
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Usage Status");
@@ -44,6 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
       schedulePolling();
       void refreshUsage();
+      void pollThreadCompletions();
     })
   );
 
@@ -51,6 +58,7 @@ export function activate(context: vscode.ExtensionContext): void {
   statusItem.show();
   schedulePolling();
   void refreshUsage();
+  void pollThreadCompletions();
 }
 
 export function deactivate(): void {
@@ -88,28 +96,7 @@ function createClient(): void {
       void refreshUsage();
     },
     onTurnCompleted: (event) => {
-      if (!settings.notifyTurnComplete) {
-        return;
-      }
-
-      const key = `${event.threadId}:${event.turnId ?? "unknown"}`;
-      if (notifiedTurns.has(key)) {
-        return;
-      }
-      notifiedTurns.add(key);
-
-      const status = event.status ? ` (${event.status})` : "";
-      const duration = typeof event.durationMs === "number" ? ` in ${formatDuration(event.durationMs)}` : "";
-      void showNotification(
-        "info",
-        "Codex chat complete",
-        `Codex chat complete${status}${duration}.`,
-        ["Show Usage"]
-      ).then((action) => {
-        if (action === "Show Usage") {
-          void showDetails();
-        }
-      });
+      notifyTurnCompleted(event);
     },
     onNeedsUserInput: (event) => {
       if (!settings.notifyNeedsInput) {
@@ -143,6 +130,7 @@ function schedulePolling(): void {
   const intervalMs = Math.max(5, settings.refreshIntervalSeconds) * 1000;
   refreshTimer = setInterval(() => {
     void refreshUsage();
+    void pollThreadCompletions();
   }, intervalMs);
 }
 
@@ -198,6 +186,101 @@ async function refreshUsage(showToast = false): Promise<void> {
       }
     }
   }
+}
+
+async function pollThreadCompletions(): Promise<void> {
+  if (!settings.notifyTurnComplete) {
+    threadCompletionPollBootstrapped = false;
+    return;
+  }
+
+  if (!client || threadCompletionPollInFlight) {
+    return;
+  }
+
+  threadCompletionPollInFlight = true;
+  const shouldNotify = threadCompletionPollBootstrapped;
+
+  try {
+    const threadSummaries = await client.listRecentThreads(THREAD_COMPLETION_POLL_LIMIT);
+    for (const summary of threadSummaries) {
+      const thread = await client.readThread(summary.id);
+      if (!thread) {
+        continue;
+      }
+
+      for (const turn of thread.turns) {
+        if (turn.completedAt === null) {
+          continue;
+        }
+
+        notifyTurnCompleted(
+          {
+            threadId: thread.id,
+            turnId: turn.id,
+            status: turn.status,
+            durationMs: turn.durationMs,
+            completedAt: turn.completedAt
+          },
+          shouldNotify
+        );
+      }
+    }
+
+    threadCompletionPollBootstrapped = true;
+    threadCompletionPollErrorLogged = false;
+  } catch (error) {
+    if (!threadCompletionPollErrorLogged) {
+      const message = error instanceof Error ? error.message : String(error);
+      output.appendLine(`Thread completion polling unavailable: ${message}`);
+      threadCompletionPollErrorLogged = true;
+    }
+  } finally {
+    threadCompletionPollInFlight = false;
+  }
+}
+
+function notifyTurnCompleted(event: CodexTurnCompletedEvent, showToast = true): void {
+  if (!settings.notifyTurnComplete) {
+    return;
+  }
+
+  const key = getTurnNotificationKey(event);
+  if (notifiedTurns.has(key)) {
+    return;
+  }
+  notifiedTurns.add(key);
+
+  if (!showToast) {
+    return;
+  }
+
+  const status = event.status ? ` (${event.status})` : "";
+  const duration = typeof event.durationMs === "number" ? ` in ${formatDuration(event.durationMs)}` : "";
+  void showNotification(
+    "info",
+    "Codex chat complete",
+    `Codex chat complete${status}${duration}.`,
+    ["Show Usage"],
+    true
+  ).then((action) => {
+    if (action === "Show Usage") {
+      void showDetails();
+    }
+  });
+}
+
+function getTurnNotificationKey(event: CodexTurnCompletedEvent): string {
+  if (event.turnId) {
+    return `${event.threadId}:${event.turnId}`;
+  }
+
+  if (event.completedAt !== null) {
+    return `${event.threadId}:completed:${event.completedAt}`;
+  }
+
+  fallbackTurnNotificationSequence += 1;
+  return `${event.threadId}:event:${Date.now()}:${fallbackTurnNotificationSequence}`;
 }
 
 function notifyUsageWarnings(snapshot: NormalizedUsageSnapshot): void {

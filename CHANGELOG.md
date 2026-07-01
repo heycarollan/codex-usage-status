@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- Add recent-thread polling so completed VS Code Codex chats can notify even when live app-server completion events are not delivered to the status-bar connection.
+- Avoid suppressing future completion notifications when a completion event is missing a turn id.
+- Show the VS Code completion toast as well when native notifications are enabled so the Show Usage action is visible.
+
 ## 0.1.4
 
 - Replace the retired Shields.io Marketplace badge with a working Marketplace version badge.
