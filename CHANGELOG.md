@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Replace the retired Shields.io Marketplace badge with a working Marketplace version badge.
+
 ## 0.1.3
 
 - Clarify that reset credits can be viewed and used from VS Code, not just displayed.

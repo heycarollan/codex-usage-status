@@ -1,6 +1,6 @@
 # Codex Usage Status
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/synapticraft.codex-usage-status?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status)
+[![VS Code Marketplace](https://badgen.net/vs-marketplace/v/synapticraft.codex-usage-status)](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status)
 
 Shows account-level Codex usage in the VS Code status bar, including reset timing, available reset credits, and a guarded action to use a reset credit without leaving your editor.
 
