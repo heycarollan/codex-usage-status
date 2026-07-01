@@ -10,6 +10,7 @@ const settings: ExtensionSettings = {
   statusFormat: "compact",
   warnAtPercent: 90,
   requestTimeoutMs: 12000,
+  notifyUsageWarnings: true,
   notifyTurnComplete: true,
   notifyNeedsInput: true,
   notificationMode: "native"

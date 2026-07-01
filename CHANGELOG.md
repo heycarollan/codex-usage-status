@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+- Add usage warning notifications when 5-hour or 7-day usage crosses the configured warning threshold.
+- Make native Linux informational notifications visible by using normal urgency.
+- Remove internal publishing notes from the public README.
+
 ## 0.1.0
 
 - Add Codex 5-hour and 7-day status bar usage.

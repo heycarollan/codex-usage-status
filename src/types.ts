@@ -119,6 +119,7 @@ export interface ExtensionSettings {
   statusFormat: "compact" | "remaining";
   warnAtPercent: number;
   requestTimeoutMs: number;
+  notifyUsageWarnings: boolean;
   notifyTurnComplete: boolean;
   notifyNeedsInput: boolean;
   notificationMode: "native" | "vscode" | "both";

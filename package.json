@@ -2,7 +2,7 @@
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
   "description": "Show Codex 5-hour and 7-day usage in the VS Code status bar.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "thiscommonuser",
   "author": {
     "name": "thiscommonuser"
@@ -98,6 +98,11 @@
           "minimum": 1000,
           "description": "Timeout for Codex app-server JSON-RPC requests."
         },
+        "codexUsage.notifyUsageWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications when Codex 5-hour or 7-day usage crosses the warning threshold."
+        },
         "codexUsage.notifyTurnComplete": {
           "type": "boolean",
           "default": true,
@@ -125,7 +130,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --allow-missing-repository --out dist/codex-usage-status-0.1.1.vsix",
+    "package": "vsce package --allow-missing-repository --out dist/codex-usage-status-0.1.2.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

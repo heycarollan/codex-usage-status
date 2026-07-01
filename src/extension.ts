@@ -5,6 +5,7 @@ import { getSettings } from "./config";
 import { buildUsageQuickPickItems, formatStatus } from "./format";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { UsageService } from "./usageService";
+import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
 
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
@@ -15,6 +16,7 @@ let latestSnapshot: NormalizedUsageSnapshot | null = null;
 let settings: ExtensionSettings;
 const notifiedTurns = new Set<string>();
 const notifiedInputRequests = new Set<string>();
+let activeUsageAlertKeys = new Set<string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Usage Status");
@@ -168,6 +170,8 @@ async function refreshUsage(showToast = false): Promise<void> {
     if (showToast) {
       vscode.window.setStatusBarMessage("Codex usage refreshed.", 2500);
     }
+
+    notifyUsageWarnings(latestSnapshot);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Refresh failed: ${message}`);
@@ -193,6 +197,43 @@ async function refreshUsage(showToast = false): Promise<void> {
         await restartAppServer();
       }
     }
+  }
+}
+
+function notifyUsageWarnings(snapshot: NormalizedUsageSnapshot): void {
+  if (!settings.notifyUsageWarnings) {
+    activeUsageAlertKeys.clear();
+    return;
+  }
+
+  const evaluation = evaluateUsageAlerts(snapshot, settings.warnAtPercent, activeUsageAlertKeys);
+  activeUsageAlertKeys = evaluation.activeKeys;
+
+  if (evaluation.alerts.length === 0) {
+    return;
+  }
+
+  void showUsageAlert(evaluation.alerts, snapshot);
+}
+
+async function showUsageAlert(alerts: UsageAlert[], snapshot: NormalizedUsageSnapshot): Promise<void> {
+  const actions = ["Show Usage"];
+  if ((snapshot.resetCredits?.availableCount ?? 0) > 0) {
+    actions.push("Use Reset Credit");
+  }
+
+  const action = await showNotification(
+    "warning",
+    alerts.some((alert) => alert.kind === "limit") ? "Codex usage limit reached" : "Codex usage warning",
+    formatUsageAlertMessage(alerts),
+    actions,
+    true
+  );
+
+  if (action === "Show Usage") {
+    await showDetails();
+  } else if (action === "Use Reset Credit") {
+    await resetUsage();
   }
 }
 
@@ -334,7 +375,7 @@ function showNativeNotification(kind: "info" | "warning", title: string, message
       [
         "--app-name=Codex Usage Status",
         "--icon=code",
-        `--urgency=${kind === "warning" ? "normal" : "low"}`,
+        "--urgency=normal",
         title,
         message
       ],
