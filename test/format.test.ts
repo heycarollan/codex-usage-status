@@ -4,6 +4,7 @@ import { formatDetails, formatResetCreditsDetails, formatWindowLine } from "../s
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "../src/types";
 
 const settings: ExtensionSettings = {
+  codexExecutableSource: "path",
   refreshIntervalSeconds: 90,
   codexExecutable: "codex",
   showExtraBuckets: true,
@@ -77,7 +78,10 @@ test("formats details with primary and extra bucket names", () => {
   assert.match(details, /Codex/);
   assert.match(details, /GPT-5\.3-Codex-Spark/);
   assert.match(details, /Reset credits: 3/);
-  assert.match(details, /Lifetime tokens: 123,456/);
+  assert.equal(
+    details.match(/^Lifetime tokens: (.*)$/m)?.[1],
+    (123456).toLocaleString(),
+  );
 });
 
 test("formats reset-credit grant and expiration details", () => {

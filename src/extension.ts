@@ -6,6 +6,7 @@ import {
   type CodexThreadSnapshot,
   type CodexTurnCompletedEvent
 } from "./codexAppServerClient";
+import { getCodexExecutablePathFromExtension } from "./codexExtension";
 import {
   formatChatCompletion,
   getCompletionActionLabel,
@@ -23,6 +24,7 @@ const THREAD_COMPLETION_POLL_LIMIT = 8;
 
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
+let clientSetupError: Error | null = null;
 let statusItem: vscode.StatusBarItem;
 let settingsPanel: vscode.WebviewPanel | null = null;
 let output: vscode.OutputChannel;
@@ -56,10 +58,15 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const previousExecutable = settings.codexExecutable;
+      const previousExecutableSource = settings.codexExecutableSource;
       const previousTimeout = settings.requestTimeoutMs;
       settings = getSettings();
 
-      if (previousExecutable !== settings.codexExecutable || previousTimeout !== settings.requestTimeoutMs) {
+      if (
+        previousExecutable !== settings.codexExecutable ||
+        previousExecutableSource !== settings.codexExecutableSource ||
+        previousTimeout !== settings.requestTimeoutMs
+      ) {
         createClient();
       }
 
@@ -110,7 +117,21 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
 function createClient(): void {
   client?.dispose();
-  client = new CodexAppServerClient(settings.codexExecutable, settings.requestTimeoutMs, output, {
+  client = null;
+  usageService = null;
+  clientSetupError = null;
+
+  let executable: string;
+  try {
+    executable = resolveCodexExecutable();
+  } catch (error) {
+    clientSetupError = error instanceof Error ? error : new Error(String(error));
+    output.appendLine(`Codex executable setup failed: ${clientSetupError.message}`);
+    return;
+  }
+
+  output.appendLine(`Using Codex executable: ${executable}`);
+  client = new CodexAppServerClient(executable, settings.requestTimeoutMs, output, {
     onRateLimitsUpdated: () => {
       void refreshUsage();
     },
@@ -208,6 +229,14 @@ async function refreshUsage(showToast = false): Promise<void> {
 
     renderSettingsPanel();
   }
+}
+
+function resolveCodexExecutable(): string {
+  if (settings.codexExecutableSource === "path") {
+    return settings.codexExecutable;
+  }
+
+  return getCodexExecutablePathFromExtension();
 }
 
 async function pollThreadCompletions(): Promise<void> {

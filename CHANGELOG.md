@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Add an executable source setting that can automatically use the Codex CLI bundled with the official OpenAI Codex extension.
+
 ## 1.0.0
 
 - Restore **Go to Chat** with the local conversation-editor resource registered by the current OpenAI extension, replacing the previously unsuccessful external URI route.

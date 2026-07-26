@@ -128,6 +128,7 @@ export interface NormalizedUsageSnapshot {
 }
 
 export interface ExtensionSettings {
+  codexExecutableSource: "path" | "extension";
   refreshIntervalSeconds: number;
   codexExecutable: string;
   showExtraBuckets: boolean;

@@ -4,6 +4,7 @@ import { normalizeSettingUpdate, renderSettingsView } from "../src/settingsView"
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "../src/types";
 
 const settings: ExtensionSettings = {
+  codexExecutableSource: "path",
   refreshIntervalSeconds: 10,
   codexExecutable: "codex",
   showExtraBuckets: true,
