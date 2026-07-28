@@ -8,6 +8,7 @@ import {
 import {
   buildCodexIdeChatUri,
   formatChatCompletion,
+  isNativeGoToChatAction,
   shouldShowNativeCompletionAlert
 } from "./chatNotifications";
 import { getSettings } from "./config";
@@ -28,6 +29,7 @@ let settings: ExtensionSettings;
 const notifiedTurns = new Set<string>();
 const notifiedInputRequests = new Set<string>();
 const recentThreads = new Map<string, CodexThreadSnapshot>();
+const nativeCompletionProcesses = new Set<ReturnType<typeof spawn>>();
 let activeUsageAlertKeys = new Set<string>();
 let threadCompletionPollBootstrapped = false;
 let threadCompletionPollInFlight = false;
@@ -77,6 +79,10 @@ export function deactivate(): void {
     refreshTimer = null;
   }
   client?.dispose();
+  for (const proc of nativeCompletionProcesses) {
+    proc.kill();
+  }
+  nativeCompletionProcesses.clear();
 }
 
 function registerCommands(context: vscode.ExtensionContext): void {
@@ -301,11 +307,14 @@ function notifyTurnCompleted(event: CodexTurnCompletedEvent, showToast = true): 
     settings.notificationMode === "native" || settings.notificationMode === "both";
 
   if (shouldShowNativeCompletionAlert(vscode.window.state.focused, nativeNotificationsEnabled)) {
-    void showNativeNotification(
-      "info",
+    void showNativeCompletionNotification(
       "Codex chat complete",
-      `${presentation.message} Open VS Code to use Go to Chat.`
-    );
+      `${presentation.message} Click to go to this chat.`
+    ).then((goToChat) => {
+      if (goToChat) {
+        void openCodexChat(event.threadId);
+      }
+    });
   }
 
   void showVscodeNotification(
@@ -549,6 +558,56 @@ function showNativeNotification(
     });
 
     proc.unref();
+  });
+}
+
+function showNativeCompletionNotification(title: string, message: string): Promise<boolean> {
+  if (process.platform !== "linux") {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    let stdout = "";
+    let settled = false;
+    const finish = (goToChat: boolean): void => {
+      if (!settled) {
+        settled = true;
+        resolve(goToChat);
+      }
+    };
+    const proc = spawn(
+      "notify-send",
+      [
+        "--app-name=Codex Usage Status",
+        "--icon=code",
+        "--urgency=normal",
+        "--action=default=Go to Chat",
+        title,
+        message
+      ],
+      {
+        stdio: ["ignore", "pipe", "ignore"]
+      }
+    );
+    nativeCompletionProcesses.add(proc);
+
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    proc.once("error", (error) => {
+      output.appendLine(`Actionable completion notification failed: ${error.message}`);
+      nativeCompletionProcesses.delete(proc);
+      finish(false);
+    });
+
+    proc.once("close", (code) => {
+      nativeCompletionProcesses.delete(proc);
+      if (code !== 0 && stdout.trim()) {
+        output.appendLine(`Actionable completion notification exited with code ${code ?? "unknown"}.`);
+      }
+      finish(isNativeGoToChatAction(stdout));
+    });
   });
 }
 

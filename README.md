@@ -61,7 +61,7 @@ The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palett
 
 Codex Usage Status refreshes usage on an interval and notifies once when a reported 5-hour or 7-day window crosses `codexUsage.warnAtPercent`. Missing windows display as `N/A` and do not trigger alerts. The alert re-arms after usage drops below the threshold.
 
-Completion notifications always use VS Code's notification UI so the **Go to Chat** and **Show Usage** buttons behave consistently. When VS Code is minimized or unfocused and `codexUsage.notificationMode` is `native` or `both`, the extension also sends a passive Linux desktop alert so the completion remains visible in the background. Return to the queued VS Code notification to use **Go to Chat**; the Linux alert itself is intentionally not clickable.
+Completion notifications always use VS Code's notification UI so the **Go to Chat** and **Show Usage** buttons behave consistently. When VS Code is minimized or unfocused and `codexUsage.notificationMode` is `native` or `both`, the extension also sends a Linux desktop alert so the completion remains visible in the background. Clicking that desktop alert invokes **Go to Chat** for the completed thread.
 
 Completion notifications use the Codex thread name, workspace folder, and Git branch when available. When Codex does not provide a name, the notification uses a short, non-color thread identifier so parallel chats remain distinguishable without relying on color alone.
 

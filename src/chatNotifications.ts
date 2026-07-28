@@ -11,6 +11,10 @@ export function shouldShowNativeCompletionAlert(windowFocused: boolean, nativeNo
   return !windowFocused && nativeNotificationsEnabled;
 }
 
+export function isNativeGoToChatAction(output: string): boolean {
+  return output.trim().split(/\s+/)[0] === "default";
+}
+
 export function buildCodexIdeChatUri(uriScheme: string, threadId: string): string | null {
   const scheme = uriScheme.trim();
   const id = threadId.trim();

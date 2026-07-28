@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildCodexIdeChatUri,
   formatChatCompletion,
+  isNativeGoToChatAction,
   shouldShowNativeCompletionAlert
 } from "../src/chatNotifications";
 
@@ -10,6 +11,12 @@ test("uses a native completion alert only when VS Code is unfocused and native a
   assert.equal(shouldShowNativeCompletionAlert(false, true), true);
   assert.equal(shouldShowNativeCompletionAlert(true, true), false);
   assert.equal(shouldShowNativeCompletionAlert(false, false), false);
+});
+
+test("recognizes the freedesktop default notification click action", () => {
+  assert.equal(isNativeGoToChatAction("default\n"), true);
+  assert.equal(isNativeGoToChatAction(""), false);
+  assert.equal(isNativeGoToChatAction("dismissed\n"), false);
 });
 
 test("builds the current Codex IDE route for an exact thread", () => {
