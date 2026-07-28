@@ -121,7 +121,7 @@
         "codexUsage.notifyTurnComplete": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications for Codex turn completion events visible to this app-server connection."
+          "description": "Show actionable notifications for visible Codex turn completions, including chat identity and an Open Chat action."
         },
         "codexUsage.notifyNeedsInput": {
           "type": "boolean",
@@ -136,7 +136,7 @@
             "both"
           ],
           "default": "native",
-          "description": "Controls notification delivery. Native uses Linux desktop notifications through notify-send and falls back to VS Code when unavailable."
+          "description": "Controls notification delivery. Native uses actionable Linux desktop notifications through notify-send and falls back to VS Code when unavailable."
         }
       }
     }

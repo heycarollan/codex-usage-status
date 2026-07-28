@@ -64,6 +64,10 @@ test("parses completed turns from thread snapshots", () => {
 
   assert.deepEqual(thread, {
     id: "thread-3",
+    name: null,
+    cwd: null,
+    gitBranch: null,
+    source: null,
     turns: [
       {
         id: "turn-3",
@@ -78,5 +82,27 @@ test("parses completed turns from thread snapshots", () => {
         durationMs: null
       }
     ]
+  });
+});
+
+test("parses chat identity from thread snapshots", () => {
+  const thread = parseThreadSnapshot({
+    id: "thread-4",
+    name: "Investigate notifications",
+    cwd: "/workspace/codex-usage-status",
+    source: "vscode",
+    gitInfo: {
+      branch: "feature/notifications"
+    },
+    turns: []
+  });
+
+  assert.deepEqual(thread, {
+    id: "thread-4",
+    name: "Investigate notifications",
+    cwd: "/workspace/codex-usage-status",
+    gitBranch: "feature/notifications",
+    source: "vscode",
+    turns: []
   });
 });
