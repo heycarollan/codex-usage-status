@@ -17,8 +17,8 @@ The extension talks to the local Codex app-server and reads:
 - Readable hover tooltip with separate usage windows, reset times, per-credit grant and expiration details, account, and token sections.
 - Quick Pick details view for Codex and model-specific buckets.
 - Manual refresh and app-server restart commands.
-- Optional native Linux and VS Code notifications for high usage, app-server-visible Codex completion, and input/approval events. Completion notifications identify the chat, project, and Git branch when Codex provides them.
-- Actionable completion notifications: click a native Linux completion notification or select **Open Chat** in a VS Code notification to return to the exact completed Codex chat.
+- Optional native Linux and VS Code notifications for high usage and input/approval events. Completion notifications use VS Code's notification UI and identify the chat, project, and Git branch when Codex provides them.
+- Actionable completion notifications with **Go to Chat** and **Show Usage** buttons.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Configurable refresh interval, warning threshold, and executable path.
 
@@ -53,7 +53,7 @@ The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palett
 | `codexUsage.warnAtPercent` | `90` | Highlight the status bar at this usage percentage. |
 | `codexUsage.requestTimeoutMs` | `12000` | Timeout for app-server requests. |
 | `codexUsage.notifyUsageWarnings` | `true` | Notify when 5-hour or 7-day usage crosses the warning threshold. |
-| `codexUsage.notifyTurnComplete` | `true` | Notify for visible turn completions with chat identity and an **Open Chat** action. |
+| `codexUsage.notifyTurnComplete` | `true` | Show a VS Code notification for visible turn completions with chat identity and a **Go to Chat** action. |
 | `codexUsage.notifyNeedsInput` | `true` | Notify when this app-server connection is asked for input or approval. |
 | `codexUsage.notificationMode` | `native` | Use Linux desktop notifications, VS Code notifications, or both. |
 
@@ -61,7 +61,7 @@ The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palett
 
 Codex Usage Status refreshes usage on an interval and notifies once when a reported 5-hour or 7-day window crosses `codexUsage.warnAtPercent`. Missing windows display as `N/A` and do not trigger alerts. The alert re-arms after usage drops below the threshold.
 
-On Linux, `native` mode sends one actionable desktop notification through `notify-send` and falls back to a VS Code notification when native delivery is unavailable. Clicking the body of a native completion notification invokes its **Open Chat** action. `vscode` mode presents **Open Chat** as a notification button. `both` intentionally sends a passive native notification plus an actionable VS Code notification.
+Completion notifications always use VS Code's notification UI so the **Go to Chat** and **Show Usage** buttons behave consistently. They do not create a separate Linux `notify-send` completion notification. The `codexUsage.notificationMode` setting still controls delivery for usage warnings and input/approval alerts.
 
 Completion notifications use the Codex thread name, workspace folder, and Git branch when available. When Codex does not provide a name, the notification uses a short, non-color thread identifier so parallel chats remain distinguishable without relying on color alone.
 

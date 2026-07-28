@@ -4,13 +4,7 @@ const CODEX_EXTENSION_ID = "openai.chatgpt";
 const MAX_CHAT_NAME_LENGTH = 72;
 
 export interface ChatCompletionPresentation {
-  title: string;
   message: string;
-}
-
-export interface NativeNotificationAction {
-  id: string;
-  label: string;
 }
 
 export function buildCodexIdeChatUri(uriScheme: string, threadId: string): string | null {
@@ -39,21 +33,8 @@ export function formatChatCompletion(
   const contextText = context.length > 0 ? ` ${context.join(" · ")}.` : "";
 
   return {
-    title: `Codex complete · ${chatName}`,
     message: `${chatName} completed${status}${duration}.${contextText}`
   };
-}
-
-export function buildNativeNotificationActions(
-  actions: readonly string[],
-  defaultAction?: string
-): NativeNotificationAction[] {
-  const uniqueActions = actions.filter((action, index) => action && actions.indexOf(action) === index);
-
-  return uniqueActions.map((label, index) => ({
-    id: label === defaultAction ? "default" : `action-${index}`,
-    label
-  }));
 }
 
 function cleanInlineText(value: string | null, maxLength: number): string | null {

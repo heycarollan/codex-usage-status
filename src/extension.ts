@@ -5,11 +5,7 @@ import {
   type CodexThreadSnapshot,
   type CodexTurnCompletedEvent
 } from "./codexAppServerClient";
-import {
-  buildCodexIdeChatUri,
-  buildNativeNotificationActions,
-  formatChatCompletion
-} from "./chatNotifications";
+import { buildCodexIdeChatUri, formatChatCompletion } from "./chatNotifications";
 import { getSettings } from "./config";
 import { buildUsageQuickPickItems, formatStatus } from "./format";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
@@ -28,7 +24,6 @@ let settings: ExtensionSettings;
 const notifiedTurns = new Set<string>();
 const notifiedInputRequests = new Set<string>();
 const recentThreads = new Map<string, CodexThreadSnapshot>();
-const nativeNotificationProcesses = new Set<ReturnType<typeof spawn>>();
 let activeUsageAlertKeys = new Set<string>();
 let threadCompletionPollBootstrapped = false;
 let threadCompletionPollInFlight = false;
@@ -78,10 +73,6 @@ export function deactivate(): void {
     refreshTimer = null;
   }
   client?.dispose();
-  for (const proc of nativeNotificationProcesses) {
-    proc.kill();
-  }
-  nativeNotificationProcesses.clear();
 }
 
 function registerCommands(context: vscode.ExtensionContext): void {
@@ -129,10 +120,10 @@ function createClient(): void {
         "warning",
         "Codex needs input",
         message,
-        ["Open Chat", "Show Usage"],
-        "Open Chat"
+        ["Go to Chat", "Show Usage"],
+        true
       ).then((action) => {
-        if (action === "Open Chat") {
+        if (action === "Go to Chat") {
           void openCodexChat(event.threadId);
         } else if (action === "Show Usage") {
           void showDetails();
@@ -303,14 +294,12 @@ function notifyTurnCompleted(event: CodexTurnCompletedEvent, showToast = true): 
     typeof event.durationMs === "number" ? formatDuration(event.durationMs) : null
   );
 
-  void showNotification(
+  void showVscodeNotification(
     "info",
-    presentation.title,
     presentation.message,
-    ["Open Chat", "Show Usage"],
-    "Open Chat"
+    ["Go to Chat", "Show Usage"]
   ).then((action) => {
-    if (action === "Open Chat") {
+    if (action === "Go to Chat") {
       void openCodexChat(event.threadId);
     } else if (action === "Show Usage") {
       void showDetails();
@@ -358,7 +347,7 @@ async function showUsageAlert(alerts: UsageAlert[], snapshot: NormalizedUsageSna
     alerts.some((alert) => alert.kind === "limit") ? "Codex usage limit reached" : "Codex usage warning",
     formatUsageAlertMessage(alerts),
     actions,
-    "Show Usage"
+    true
   );
 
   if (action === "Show Usage") {
@@ -481,22 +470,17 @@ async function showNotification(
   title: string,
   message: string,
   actions: string[] = [],
-  defaultAction?: string
+  alwaysShowActions = false
 ): Promise<string | undefined> {
   const wantsNative = settings.notificationMode === "native" || settings.notificationMode === "both";
-  if (settings.notificationMode === "both") {
-    void showNativeNotification(kind, title, message);
-    return showVscodeNotification(kind, message, actions);
-  }
+  const nativeDelivered = wantsNative ? await showNativeNotification(kind, title, message) : false;
+  const wantsVscode =
+    settings.notificationMode === "vscode" ||
+    settings.notificationMode === "both" ||
+    !nativeDelivered ||
+    (alwaysShowActions && actions.length > 0);
 
-  if (wantsNative) {
-    const nativeResult = await showNativeNotification(kind, title, message, actions, defaultAction);
-    if (nativeResult.delivered) {
-      return nativeResult.action;
-    }
-  }
-
-  return showVscodeNotification(kind, message, actions);
+  return wantsVscode ? showVscodeNotification(kind, message, actions) : undefined;
 }
 
 function showVscodeNotification(
@@ -514,67 +498,43 @@ function showVscodeNotification(
 function showNativeNotification(
   kind: "info" | "warning",
   title: string,
-  message: string,
-  actions: string[] = [],
-  defaultAction?: string
-): Promise<{ delivered: boolean; action?: string }> {
+  message: string
+): Promise<boolean> {
   if (process.platform !== "linux") {
-    return Promise.resolve({ delivered: false });
+    return Promise.resolve(false);
   }
 
   return new Promise((resolve) => {
-    const nativeActions = buildNativeNotificationActions(actions, defaultAction);
-    const actionById = new Map(nativeActions.map((action) => [action.id, action.label]));
-    let stdout = "";
-    let settled = false;
-    const finish = (result: { delivered: boolean; action?: string }): void => {
-      if (!settled) {
-        settled = true;
-        resolve(result);
-      }
-    };
     const proc = spawn(
       "notify-send",
       [
         "--app-name=Codex Usage Status",
         "--icon=code",
         "--urgency=normal",
-        ...nativeActions.map((action) => `--action=${action.id}=${action.label}`),
         title,
         message
       ],
       {
-        stdio: nativeActions.length > 0 ? ["ignore", "pipe", "ignore"] : "ignore",
-        detached: nativeActions.length === 0
+        stdio: "ignore",
+        detached: true
       }
     );
-    nativeNotificationProcesses.add(proc);
 
     proc.once("error", (error) => {
       output.appendLine(`Native notification failed: ${error.message}`);
-      nativeNotificationProcesses.delete(proc);
-      finish({ delivered: false });
+      resolve(false);
     });
 
-    proc.stdout?.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-
-    proc.once("close", (code) => {
-      nativeNotificationProcesses.delete(proc);
+    proc.once("exit", (code) => {
       if (code === 0) {
-        const actionId = stdout.trim().split(/\s+/)[0];
-        const action = actionId ? actionById.get(actionId) : undefined;
-        finish({ delivered: true, ...(action ? { action } : {}) });
+        resolve(true);
       } else {
         output.appendLine(`Native notification failed with exit code ${code ?? "unknown"}.`);
-        finish({ delivered: false });
+        resolve(false);
       }
     });
 
-    if (nativeActions.length === 0) {
-      proc.unref();
-    }
+    proc.unref();
   });
 }
 

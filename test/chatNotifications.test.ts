@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  buildCodexIdeChatUri,
-  buildNativeNotificationActions,
-  formatChatCompletion
-} from "../src/chatNotifications";
+import { buildCodexIdeChatUri, formatChatCompletion } from "../src/chatNotifications";
 
 test("builds the current Codex IDE route for an exact thread", () => {
   assert.equal(
@@ -29,7 +25,6 @@ test("formats a completion with stable chat, project, and branch identity", () =
     "1m 5s"
   );
 
-  assert.equal(presentation.title, "Codex complete · Fix the reset-credit flow");
   assert.equal(
     presentation.message,
     "Fix the reset-credit flow completed · 1m 5s. codex-usage-status · codex/actionable-chat-notifications."
@@ -48,13 +43,5 @@ test("falls back to a short non-color chat identifier", () => {
     null
   );
 
-  assert.equal(presentation.title, "Codex complete · Chat ABC123");
   assert.equal(presentation.message, "Chat ABC123 completed.");
-});
-
-test("marks the notification body action as the freedesktop default", () => {
-  assert.deepEqual(buildNativeNotificationActions(["Open Chat", "Show Usage"], "Open Chat"), [
-    { id: "default", label: "Open Chat" },
-    { id: "action-1", label: "Show Usage" }
-  ]);
 });
