@@ -17,7 +17,7 @@ The extension talks to the local Codex app-server and reads:
 - Readable hover tooltip with separate usage windows, reset times, per-credit grant and expiration details, account, and token sections.
 - Quick Pick details view for Codex and model-specific buckets.
 - Manual refresh and app-server restart commands.
-- Optional native Linux and VS Code notifications for high usage and input/approval events. Completion notifications use VS Code's notification UI and identify the chat, project, and Git branch when Codex provides them.
+- Optional native Linux and VS Code notifications for high usage and input/approval events. Completion notifications identify the chat, project, and Git branch when Codex provides them, with a background desktop alert when VS Code is unfocused.
 - Actionable completion notifications with **Go to Chat** and **Show Usage** buttons.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Configurable refresh interval, warning threshold, and executable path.
@@ -61,7 +61,7 @@ The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palett
 
 Codex Usage Status refreshes usage on an interval and notifies once when a reported 5-hour or 7-day window crosses `codexUsage.warnAtPercent`. Missing windows display as `N/A` and do not trigger alerts. The alert re-arms after usage drops below the threshold.
 
-Completion notifications always use VS Code's notification UI so the **Go to Chat** and **Show Usage** buttons behave consistently. They do not create a separate Linux `notify-send` completion notification. The `codexUsage.notificationMode` setting still controls delivery for usage warnings and input/approval alerts.
+Completion notifications always use VS Code's notification UI so the **Go to Chat** and **Show Usage** buttons behave consistently. When VS Code is minimized or unfocused and `codexUsage.notificationMode` is `native` or `both`, the extension also sends a passive Linux desktop alert so the completion remains visible in the background. Return to the queued VS Code notification to use **Go to Chat**; the Linux alert itself is intentionally not clickable.
 
 Completion notifications use the Codex thread name, workspace folder, and Git branch when available. When Codex does not provide a name, the notification uses a short, non-color thread identifier so parallel chats remain distinguishable without relying on color alone.
 

@@ -136,7 +136,7 @@
             "both"
           ],
           "default": "native",
-          "description": "Controls usage and input notification delivery. Completion notifications always use VS Code so their Go to Chat action works consistently."
+          "description": "Controls usage and input notification delivery and background completion alerts. Completion actions always use VS Code so Go to Chat works consistently."
         }
       }
     }

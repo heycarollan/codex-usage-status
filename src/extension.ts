@@ -5,7 +5,11 @@ import {
   type CodexThreadSnapshot,
   type CodexTurnCompletedEvent
 } from "./codexAppServerClient";
-import { buildCodexIdeChatUri, formatChatCompletion } from "./chatNotifications";
+import {
+  buildCodexIdeChatUri,
+  formatChatCompletion,
+  shouldShowNativeCompletionAlert
+} from "./chatNotifications";
 import { getSettings } from "./config";
 import { buildUsageQuickPickItems, formatStatus } from "./format";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
@@ -293,6 +297,16 @@ function notifyTurnCompleted(event: CodexTurnCompletedEvent, showToast = true): 
     enrichedEvent,
     typeof event.durationMs === "number" ? formatDuration(event.durationMs) : null
   );
+  const nativeNotificationsEnabled =
+    settings.notificationMode === "native" || settings.notificationMode === "both";
+
+  if (shouldShowNativeCompletionAlert(vscode.window.state.focused, nativeNotificationsEnabled)) {
+    void showNativeNotification(
+      "info",
+      "Codex chat complete",
+      `${presentation.message} Open VS Code to use Go to Chat.`
+    );
+  }
 
   void showVscodeNotification(
     "info",

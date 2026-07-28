@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildCodexIdeChatUri, formatChatCompletion } from "../src/chatNotifications";
+import {
+  buildCodexIdeChatUri,
+  formatChatCompletion,
+  shouldShowNativeCompletionAlert
+} from "../src/chatNotifications";
+
+test("uses a native completion alert only when VS Code is unfocused and native alerts are enabled", () => {
+  assert.equal(shouldShowNativeCompletionAlert(false, true), true);
+  assert.equal(shouldShowNativeCompletionAlert(true, true), false);
+  assert.equal(shouldShowNativeCompletionAlert(false, false), false);
+});
 
 test("builds the current Codex IDE route for an exact thread", () => {
   assert.equal(

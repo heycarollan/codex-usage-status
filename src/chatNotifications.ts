@@ -7,6 +7,10 @@ export interface ChatCompletionPresentation {
   message: string;
 }
 
+export function shouldShowNativeCompletionAlert(windowFocused: boolean, nativeNotificationsEnabled: boolean): boolean {
+  return !windowFocused && nativeNotificationsEnabled;
+}
+
 export function buildCodexIdeChatUri(uriScheme: string, threadId: string): string | null {
   const scheme = uriScheme.trim();
   const id = threadId.trim();
