@@ -56,10 +56,8 @@ export function normalizeRateLimits(
 
 function normalizeBucket(id: string, snapshot: RateLimitSnapshot): NormalizedUsageBucket {
   const windows = [snapshot.primary, snapshot.secondary].filter((window) => window !== null);
-  const fiveHour =
-    windows.find((window) => window.windowDurationMins === FIVE_HOURS_MINS) ?? snapshot.primary ?? null;
-  const sevenDay =
-    windows.find((window) => window.windowDurationMins === SEVEN_DAYS_MINS) ?? snapshot.secondary ?? null;
+  const fiveHour = windows.find((window) => window.windowDurationMins === FIVE_HOURS_MINS) ?? null;
+  const sevenDay = windows.find((window) => window.windowDurationMins === SEVEN_DAYS_MINS) ?? null;
 
   return {
     id,

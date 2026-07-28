@@ -29,8 +29,23 @@ export interface SpendControlLimitSnapshot {
   resetsAt: number;
 }
 
+export type RateLimitResetType = "codexRateLimits" | "unknown";
+export type RateLimitResetCreditStatus = "available" | "redeeming" | "redeemed" | "unknown";
+
+export interface RateLimitResetCredit {
+  id: string;
+  resetType: RateLimitResetType;
+  status: RateLimitResetCreditStatus;
+  grantedAt: number;
+  expiresAt: number | null;
+  title: string | null;
+  description: string | null;
+}
+
 export interface RateLimitResetCreditsSummary {
   availableCount: number;
+  // Older Codex app-server versions returned only availableCount.
+  credits?: RateLimitResetCredit[] | null;
 }
 
 export type PlanType =

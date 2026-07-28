@@ -5,6 +5,9 @@ import {
   formatInteger,
   formatRecentDailyUsage,
   formatRecentTokenTotal,
+  formatResetCreditExpiry,
+  formatResetCreditsDetails,
+  formatResetCreditType,
   formatResetShort,
   formatResetTime,
   formatWindowLine,
@@ -15,6 +18,7 @@ import type {
   ExtensionSettings,
   NormalizedUsageBucket,
   NormalizedUsageSnapshot,
+  RateLimitResetCreditsSummary,
   RateLimitWindow
 } from "./types";
 
@@ -66,7 +70,7 @@ export function buildUsageQuickPickItems(
     label: "$(graph) Account Summary",
     description: snapshot.codex.planType ? `Plan: ${snapshot.codex.planType}` : undefined,
     detail: [
-      `Reset credits: ${snapshot.resetCredits?.availableCount ?? "unknown"}`,
+      formatResetCreditsDetails(snapshot.resetCredits),
       snapshot.codex.credits
         ? `Credits: ${snapshot.codex.credits.unlimited ? "unlimited" : snapshot.codex.credits.balance ?? "unknown"}`
         : null,
@@ -142,6 +146,9 @@ function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSett
   }
 
   tooltip.appendMarkdown("\n\n---\n\n");
+  tooltip.appendMarkdown(formatResetCreditsMarkdown(snapshot.resetCredits));
+
+  tooltip.appendMarkdown("\n\n---\n\n");
   tooltip.appendMarkdown("**Account**\n\n");
   tooltip.appendMarkdown("| Field | Value |\n| --- | --- |\n");
 
@@ -153,8 +160,6 @@ function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSett
     const balance = snapshot.codex.credits.unlimited ? "unlimited" : snapshot.codex.credits.balance ?? "unknown";
     tooltip.appendMarkdown(`| Credits | \`${escapeTableCell(balance)}\` |\n`);
   }
-
-  tooltip.appendMarkdown(`| Reset credits | \`${snapshot.resetCredits?.availableCount ?? "unknown"}\` |\n`);
 
   if (snapshot.tokenUsage?.summary) {
     tooltip.appendMarkdown(
@@ -211,7 +216,7 @@ function formatBucketDetail(bucket: NormalizedUsageBucket): string {
 
 function formatStatusWindowPercent(window: RateLimitWindow | null, format: ExtensionSettings["statusFormat"]): string {
   if (!window) {
-    return "?";
+    return "N/A";
   }
 
   if (format === "remaining") {
@@ -222,7 +227,54 @@ function formatStatusWindowPercent(window: RateLimitWindow | null, format: Exten
 }
 
 function formatResetCell(window: RateLimitWindow | null): string {
-  return window?.resetsAt ? `\`${escapeTableCell(formatResetShort(window.resetsAt))}\`` : "`unknown`";
+  if (!window) {
+    return "`N/A`";
+  }
+
+  return window.resetsAt ? `\`${escapeTableCell(formatResetShort(window.resetsAt))}\`` : "`unknown`";
+}
+
+function formatResetCreditsMarkdown(summary: RateLimitResetCreditsSummary | null): string {
+  const lines = [
+    "**Reset credits**",
+    "",
+    `Available: \`${summary?.availableCount ?? "unknown"}\``
+  ];
+
+  if (!summary) {
+    return lines.join("\n");
+  }
+
+  const credits = summary.credits;
+  if (!credits) {
+    if (summary.availableCount > 0) {
+      lines.push("", "_Per-credit details are unavailable from this Codex version._");
+    }
+    return lines.join("\n");
+  }
+
+  if (credits.length === 0 && summary.availableCount > 0) {
+    lines.push("", "_Codex returned no per-credit detail rows._");
+    return lines.join("\n");
+  }
+
+  for (const [index, credit] of credits.entries()) {
+    lines.push(
+      "",
+      `**${index + 1}. ${escapeMarkdown(credit.title ?? "Reset credit")}**`,
+      "",
+      `- Status: \`${escapeMarkdown(credit.status)}\``,
+      `- Applies to: \`${escapeMarkdown(formatResetCreditType(credit.resetType))}\``,
+      `- Granted: \`${escapeMarkdown(formatResetTime(credit.grantedAt))}\``,
+      `- Expires: \`${escapeMarkdown(formatResetCreditExpiry(credit))}\``
+    );
+
+    if (credit.description) {
+      lines.push(`- Details: ${escapeMarkdown(credit.description.replace(/\s+/g, " ").trim())}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function escapeTableCell(value: string): string {

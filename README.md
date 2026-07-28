@@ -8,13 +8,13 @@ Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/item
 
 The extension talks to the local Codex app-server and reads:
 
-- `account/rateLimits/read` for the 5-hour and 7-day rolling usage windows.
+- `account/rateLimits/read` for the usage windows Codex currently reports.
 - `account/usage/read` for daily token usage summaries in the details view.
 
 ## Features
 
-- Status bar display: `Codex: 5h 7% · 7d 9%`
-- Readable hover tooltip with separate usage windows, reset times, reset credits, account, and token sections.
+- Status bar display: `Codex: 5h N/A · 7d 9%` when Codex reports only a 7-day window. A 5-hour percentage appears automatically when the API provides that window.
+- Readable hover tooltip with separate usage windows, reset times, per-credit grant and expiration details, account, and token sections.
 - Quick Pick details view for Codex and model-specific buckets.
 - Manual refresh and app-server restart commands.
 - Optional native Linux and VS Code notifications for high usage, app-server-visible Codex completion, and input/approval events.
@@ -23,7 +23,9 @@ The extension talks to the local Codex app-server and reads:
 
 ## Reset credits
 
-Codex Usage Status does more than display when your 5-hour and 7-day windows reset. When Codex reports reset credits for your account, the extension shows how many are available and exposes `Codex Usage: Use Reset Credit` in the Command Palette and details Quick Pick. The command asks for confirmation before consuming a reset credit, then refreshes usage so you can see the new state immediately.
+Codex Usage Status does more than display when usage windows reset. When Codex reports reset credits for your account, the hover tooltip shows each credit's title, status, grant time, expiration time, scope, and description. Older Codex versions that provide only the available count are labeled accordingly.
+
+The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palette and details Quick Pick. The command asks for confirmation before consuming a reset credit, then refreshes usage so you can see the new state immediately.
 
 ## Commands
 
@@ -56,7 +58,7 @@ Codex Usage Status does more than display when your 5-hour and 7-day windows res
 
 ## Notifications
 
-Codex Usage Status refreshes usage on an interval and notifies once when the 5-hour or 7-day window crosses `codexUsage.warnAtPercent`. The alert re-arms after usage drops below the threshold. On Linux, `native` mode sends desktop notifications with `notify-send` and falls back to VS Code if native notifications are unavailable. Usage and input/approval notifications also keep VS Code action buttons available.
+Codex Usage Status refreshes usage on an interval and notifies once when a reported 5-hour or 7-day window crosses `codexUsage.warnAtPercent`. Missing windows display as `N/A` and do not trigger alerts. The alert re-arms after usage drops below the threshold. On Linux, `native` mode sends desktop notifications with `notify-send` and falls back to VS Code if native notifications are unavailable. Usage and input/approval notifications also keep VS Code action buttons available.
 
 Completion and input notifications fire for events visible to this extension's app-server connection. The official Codex extension may use a separate private app-server process, so cross-panel notifications depend on whether Codex exposes those events to this companion connection.
 

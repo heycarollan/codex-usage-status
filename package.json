@@ -1,8 +1,8 @@
 {
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
-  "description": "Track Codex 5-hour and 7-day usage, see reset credits, and use a reset credit from VS Code.",
-  "version": "0.1.5",
+  "description": "Track Codex usage windows, reset timing, and reset-credit expiration details from VS Code.",
+  "version": "0.1.6",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -145,7 +145,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-0.1.5.vsix",
+    "package": "vsce package --out dist/codex-usage-status-0.1.6.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

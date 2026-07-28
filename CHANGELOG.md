@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+- Show full reset-credit details in the hover tooltip, including status, scope, grant time, expiration time, and description.
+- Display a missing 5-hour usage window as `N/A` instead of duplicating the 7-day value.
+- Match rate-limit windows by their reported duration so future 5-hour windows appear automatically when Codex provides them.
+
 ## 0.1.5
 
 - Add recent-thread polling so completed VS Code Codex chats can notify even when live app-server completion events are not delivered to the status-bar connection.

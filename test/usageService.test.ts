@@ -72,3 +72,37 @@ test("falls back to historical single-bucket response", () => {
   assert.equal(snapshot.codex.fiveHour?.usedPercent, 5);
   assert.equal(snapshot.codex.sevenDay?.usedPercent, 9);
 });
+
+test("does not mislabel a lone 7-day primary window as 5-hour usage", () => {
+  const sevenDayWindow = { usedPercent: 12, windowDurationMins: 10080, resetsAt: 1785629904 };
+  const response: GetAccountRateLimitsResponse = {
+    rateLimits: {
+      limitId: "codex",
+      limitName: null,
+      primary: sevenDayWindow,
+      secondary: null,
+      credits: null,
+      individualLimit: null,
+      planType: "prolite",
+      rateLimitReachedType: null
+    },
+    rateLimitsByLimitId: {
+      codex: {
+        limitId: "codex",
+        limitName: null,
+        primary: sevenDayWindow,
+        secondary: null,
+        credits: null,
+        individualLimit: null,
+        planType: "prolite",
+        rateLimitReachedType: null
+      }
+    },
+    rateLimitResetCredits: null
+  };
+
+  const snapshot = normalizeRateLimits(response, null, new Date(0));
+
+  assert.equal(snapshot.codex.fiveHour, null);
+  assert.equal(snapshot.codex.sevenDay, sevenDayWindow);
+});

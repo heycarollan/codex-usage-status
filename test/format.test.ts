@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatDetails, formatWindowLine } from "../src/formatCore";
+import { formatDetails, formatResetCreditsDetails, formatWindowLine } from "../src/formatCore";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "../src/types";
 
 const settings: ExtensionSettings = {
@@ -16,8 +16,8 @@ const settings: ExtensionSettings = {
   notificationMode: "native"
 };
 
-test("formats missing windows as unknown", () => {
-  assert.equal(formatWindowLine(null), "unknown");
+test("formats missing windows as N/A", () => {
+  assert.equal(formatWindowLine(null), "N/A");
 });
 
 test("formats details with primary and extra bucket names", () => {
@@ -77,4 +77,46 @@ test("formats details with primary and extra bucket names", () => {
   assert.match(details, /GPT-5\.3-Codex-Spark/);
   assert.match(details, /Reset credits: 3/);
   assert.match(details, /Lifetime tokens: 123,456/);
+});
+
+test("formats reset-credit grant and expiration details", () => {
+  const details = formatResetCreditsDetails({
+    availableCount: 2,
+    credits: [
+      {
+        id: "credit-1",
+        resetType: "codexRateLimits",
+        status: "available",
+        grantedAt: 1000,
+        expiresAt: 2000,
+        title: "Full reset",
+        description: "One free rate limit reset."
+      },
+      {
+        id: "credit-2",
+        resetType: "codexRateLimits",
+        status: "available",
+        grantedAt: 3000,
+        expiresAt: null,
+        title: null,
+        description: null
+      }
+    ]
+  });
+
+  assert.match(details, /Reset credits: 2/);
+  assert.match(details, /Full reset/);
+  assert.match(details, /Status: available/);
+  assert.match(details, /Applies to: Codex rate limits/);
+  assert.match(details, /Granted:/);
+  assert.match(details, /Expires:/);
+  assert.match(details, /One free rate limit reset\./);
+  assert.match(details, /Does not expire/);
+});
+
+test("reports when an older Codex version omits reset-credit details", () => {
+  assert.equal(
+    formatResetCreditsDetails({ availableCount: 1 }),
+    "Reset credits: 1\n  Details: unavailable from this Codex version"
+  );
 });

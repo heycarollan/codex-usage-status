@@ -3,6 +3,9 @@ import type {
   ExtensionSettings,
   NormalizedUsageBucket,
   NormalizedUsageSnapshot,
+  RateLimitResetCredit,
+  RateLimitResetCreditsSummary,
+  RateLimitResetType,
   RateLimitWindow
 } from "./types";
 
@@ -31,9 +34,7 @@ export function formatDetails(snapshot: NormalizedUsageSnapshot, settings: Exten
     lines.push("");
   }
 
-  if (snapshot.resetCredits) {
-    lines.push(`Reset credits: ${snapshot.resetCredits.availableCount}`);
-  }
+  lines.push(formatResetCreditsDetails(snapshot.resetCredits));
 
   if (snapshot.tokenUsage?.summary) {
     const summary = snapshot.tokenUsage.summary;
@@ -78,7 +79,7 @@ export function formatRecentTokenTotal(
 
 export function formatWindowLine(window: RateLimitWindow | null): string {
   if (!window) {
-    return "unknown";
+    return "N/A";
   }
 
   const reset = window.resetsAt ? `, resets ${formatResetTime(window.resetsAt)}` : "";
@@ -86,11 +87,11 @@ export function formatWindowLine(window: RateLimitWindow | null): string {
 }
 
 export function formatWindowPercent(window: RateLimitWindow | null): string {
-  return window ? `${window.usedPercent}%` : "?";
+  return window ? `${window.usedPercent}%` : "N/A";
 }
 
 export function formatWindowRemaining(window: RateLimitWindow | null): string {
-  return window ? `${Math.max(0, 100 - window.usedPercent)}% left` : "?";
+  return window ? `${Math.max(0, 100 - window.usedPercent)}% left` : "N/A";
 }
 
 export function formatResetTime(unixSeconds: number): string {
@@ -98,8 +99,10 @@ export function formatResetTime(unixSeconds: number): string {
     weekday: "short",
     month: "short",
     day: "numeric",
+    year: "numeric",
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZoneName: "short"
   });
 }
 
@@ -118,6 +121,52 @@ export function formatResetShort(unixSeconds: number | null | undefined): string
 
 export function formatInteger(value: number | null | undefined): string {
   return typeof value === "number" ? value.toLocaleString() : "unknown";
+}
+
+export function formatResetCreditsDetails(summary: RateLimitResetCreditsSummary | null): string {
+  if (!summary) {
+    return "Reset credits: unknown";
+  }
+
+  const lines = [`Reset credits: ${summary.availableCount}`];
+  const credits = summary.credits;
+
+  if (!credits) {
+    if (summary.availableCount > 0) {
+      lines.push("  Details: unavailable from this Codex version");
+    }
+    return lines.join("\n");
+  }
+
+  if (credits.length === 0 && summary.availableCount > 0) {
+    lines.push("  Details: Codex returned no per-credit detail rows");
+    return lines.join("\n");
+  }
+
+  for (const [index, credit] of credits.entries()) {
+    lines.push(...formatResetCreditDetails(credit, index));
+  }
+
+  return lines.join("\n");
+}
+
+export function formatResetCreditExpiry(credit: RateLimitResetCredit): string {
+  return credit.expiresAt ? formatResetTime(credit.expiresAt) : "Does not expire";
+}
+
+export function formatResetCreditType(resetType: RateLimitResetType): string {
+  return resetType === "codexRateLimits" ? "Codex rate limits" : "Unknown";
+}
+
+function formatResetCreditDetails(credit: RateLimitResetCredit, index: number): string[] {
+  return [
+    `  ${index + 1}. ${credit.title ?? "Reset credit"}`,
+    `     Status: ${credit.status}`,
+    `     Applies to: ${formatResetCreditType(credit.resetType)}`,
+    `     Granted: ${formatResetTime(credit.grantedAt)}`,
+    `     Expires: ${formatResetCreditExpiry(credit)}`,
+    ...(credit.description ? [`     Details: ${credit.description.replace(/\s+/g, " ").trim()}`] : [])
+  ];
 }
 
 function getRecentDailyUsage(
