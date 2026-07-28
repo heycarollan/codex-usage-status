@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { CodexAppServerClient } from "../src/codexAppServerClient";
 import type { GetAccountRateLimitsResponse } from "../src/types";
-import { normalizeRateLimits } from "../src/usageService";
+import { UsageService, normalizeRateLimits, selectEarliestExpiringResetCredit } from "../src/usageService";
 
 test("normalizes primary codex and extra buckets", () => {
   const response: GetAccountRateLimitsResponse = {
@@ -105,4 +106,73 @@ test("does not mislabel a lone 7-day primary window as 5-hour usage", () => {
 
   assert.equal(snapshot.codex.fiveHour, null);
   assert.equal(snapshot.codex.sevenDay, sevenDayWindow);
+});
+
+test("selects the available reset credit closest to expiration", () => {
+  const selected = selectEarliestExpiringResetCredit({
+    availableCount: 3,
+    credits: [
+      {
+        id: "never-expires",
+        resetType: "codexRateLimits",
+        status: "available",
+        grantedAt: 100,
+        expiresAt: null,
+        title: null,
+        description: null
+      },
+      {
+        id: "already-redeemed",
+        resetType: "codexRateLimits",
+        status: "redeemed",
+        grantedAt: 50,
+        expiresAt: 500,
+        title: null,
+        description: null
+      },
+      {
+        id: "expires-later",
+        resetType: "codexRateLimits",
+        status: "available",
+        grantedAt: 200,
+        expiresAt: 2000,
+        title: null,
+        description: null
+      },
+      {
+        id: "expires-first",
+        resetType: "codexRateLimits",
+        status: "available",
+        grantedAt: 300,
+        expiresAt: 1000,
+        title: null,
+        description: null
+      }
+    ]
+  });
+
+  assert.equal(selected?.id, "expires-first");
+});
+
+test("falls back to automatic reset-credit selection when details are unavailable", () => {
+  assert.equal(selectEarliestExpiringResetCredit({ availableCount: 1 }), null);
+});
+
+test("forwards the selected reset credit id to Codex", async () => {
+  let receivedIdempotencyKey: string | undefined;
+  let receivedCreditId: string | undefined;
+  const client = {
+    async consumeRateLimitResetCredit(idempotencyKey: string, creditId?: string) {
+      receivedIdempotencyKey = idempotencyKey;
+      receivedCreditId = creditId;
+      return { outcome: "reset" as const };
+    }
+  } as unknown as CodexAppServerClient;
+  const service = new UsageService(client);
+
+  const outcome = await service.consumeResetCredit("expires-first");
+
+  assert.equal(outcome, "reset");
+  assert.match(receivedIdempotencyKey ?? "", /^[0-9a-f-]{36}$/);
+  assert.equal(receivedCreditId, "expires-first");
 });

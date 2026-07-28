@@ -2,7 +2,7 @@
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
   "description": "Track Codex usage windows, reset timing, and reset-credit expiration details from VS Code.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -145,7 +145,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-0.1.6.vsix",
+    "package": "vsce package --out dist/codex-usage-status-0.1.7.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

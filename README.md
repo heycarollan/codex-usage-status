@@ -18,14 +18,14 @@ The extension talks to the local Codex app-server and reads:
 - Quick Pick details view for Codex and model-specific buckets.
 - Manual refresh and app-server restart commands.
 - Optional native Linux and VS Code notifications for high usage, app-server-visible Codex completion, and input/approval events.
-- Reset-credit action with a confirmation prompt when Codex reports reset credits are available, so you can apply one from VS Code instead of only seeing that it exists.
+- Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Configurable refresh interval, warning threshold, and executable path.
 
 ## Reset credits
 
 Codex Usage Status does more than display when usage windows reset. When Codex reports reset credits for your account, the hover tooltip shows each credit's title, status, grant time, expiration time, scope, and description. Older Codex versions that provide only the available count are labeled accordingly.
 
-The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palette and details Quick Pick. The command asks for confirmation before consuming a reset credit, then refreshes usage so you can see the new state immediately.
+The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palette and details Quick Pick. The command asks for confirmation, explicitly uses the available credit closest to expiration, then refreshes usage so you can see the new state immediately. Credits without an expiration are used after expiring credits. When an older Codex version does not provide per-credit IDs, Codex chooses the credit automatically.
 
 ## Commands
 

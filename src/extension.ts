@@ -4,7 +4,7 @@ import { CodexAppServerClient, type CodexTurnCompletedEvent } from "./codexAppSe
 import { getSettings } from "./config";
 import { buildUsageQuickPickItems, formatStatus } from "./format";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
-import { UsageService } from "./usageService";
+import { selectEarliestExpiringResetCredit, UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
 
 const THREAD_COMPLETION_POLL_LIMIT = 8;
@@ -370,8 +370,15 @@ async function resetUsage(): Promise<void> {
     return;
   }
 
+  const selectedCredit = selectEarliestExpiringResetCredit(latestSnapshot?.resetCredits);
+  const selectionDetail =
+    selectedCredit?.expiresAt !== null && selectedCredit?.expiresAt !== undefined
+      ? ` The available credit expiring ${new Date(selectedCredit.expiresAt * 1000).toLocaleString()} will be used first.`
+      : selectedCredit
+        ? " A non-expiring credit will be used because no expiring credit is available."
+        : " Codex will choose the credit because per-credit IDs are unavailable.";
   const confirmation = await vscode.window.showWarningMessage(
-    `Use one Codex reset credit? You currently have ${availableCount} available.`,
+    `Use one Codex reset credit? You currently have ${availableCount} available.${selectionDetail}`,
     { modal: true },
     "Use Reset Credit"
   );
@@ -381,7 +388,7 @@ async function resetUsage(): Promise<void> {
   }
 
   try {
-    const outcome = await usageService!.consumeResetCredit();
+    const outcome = await usageService!.consumeResetCredit(selectedCredit?.id);
     output.appendLine(`Reset credit outcome: ${outcome}`);
 
     const message = formatResetOutcome(outcome);

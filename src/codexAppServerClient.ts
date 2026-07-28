@@ -76,10 +76,14 @@ export class CodexAppServerClient {
     return this.request<GetAccountTokenUsageResponse>("account/usage/read", null);
   }
 
-  async consumeRateLimitResetCredit(idempotencyKey: string): Promise<ConsumeAccountRateLimitResetCreditResponse> {
+  async consumeRateLimitResetCredit(
+    idempotencyKey: string,
+    creditId?: string
+  ): Promise<ConsumeAccountRateLimitResetCreditResponse> {
     await this.ensureInitialized();
     return this.request<ConsumeAccountRateLimitResetCreditResponse>("account/rateLimitResetCredit/consume", {
-      idempotencyKey
+      idempotencyKey,
+      ...(creditId ? { creditId } : {})
     });
   }
 

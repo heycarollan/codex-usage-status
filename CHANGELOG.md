@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7
+
+- Explicitly consume the available reset credit with the nearest expiration when Codex provides per-credit IDs.
+- Keep automatic server-side credit selection as a compatibility fallback for older Codex versions that report only an available count.
+- Show the selected credit's expiration in the reset confirmation prompt.
+
 ## 0.1.6
 
 - Show full reset-credit details in the hover tooltip, including status, scope, grant time, expiration time, and description.

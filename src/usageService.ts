@@ -5,6 +5,8 @@ import type {
   GetAccountRateLimitsResponse,
   NormalizedUsageBucket,
   NormalizedUsageSnapshot,
+  RateLimitResetCredit,
+  RateLimitResetCreditsSummary,
   RateLimitSnapshot
 } from "./types";
 
@@ -23,10 +25,35 @@ export class UsageService {
     return normalizeRateLimits(limits, tokenUsage, new Date());
   }
 
-  async consumeResetCredit(): Promise<ConsumeAccountRateLimitResetCreditOutcome> {
-    const response = await this.client.consumeRateLimitResetCredit(randomUUID());
+  async consumeResetCredit(creditId?: string): Promise<ConsumeAccountRateLimitResetCreditOutcome> {
+    const response = await this.client.consumeRateLimitResetCredit(randomUUID(), creditId);
     return response.outcome;
   }
+}
+
+export function selectEarliestExpiringResetCredit(
+  summary: RateLimitResetCreditsSummary | null | undefined
+): RateLimitResetCredit | null {
+  const availableCredits = summary?.credits?.filter((credit) => credit.status === "available") ?? [];
+
+  return availableCredits.reduce<RateLimitResetCredit | null>((selected, credit) => {
+    if (!selected) {
+      return credit;
+    }
+
+    const selectedExpiry = selected.expiresAt ?? Number.POSITIVE_INFINITY;
+    const creditExpiry = credit.expiresAt ?? Number.POSITIVE_INFINITY;
+
+    if (creditExpiry !== selectedExpiry) {
+      return creditExpiry < selectedExpiry ? credit : selected;
+    }
+
+    if (credit.grantedAt !== selected.grantedAt) {
+      return credit.grantedAt < selected.grantedAt ? credit : selected;
+    }
+
+    return credit.id.localeCompare(selected.id) < 0 ? credit : selected;
+  }, null);
 }
 
 export function normalizeRateLimits(
