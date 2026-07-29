@@ -6,10 +6,8 @@ import {
   type CodexTurnCompletedEvent
 } from "./codexAppServerClient";
 import {
-  buildCodexIdeChatUri,
   formatChatCompletion,
-  isNativeGoToChatAction,
-  shouldShowNativeCompletionAlert
+  getCompletionNotificationPlan
 } from "./chatNotifications";
 import { getSettings } from "./config";
 import { buildUsageQuickPickItems, formatStatus } from "./format";
@@ -29,7 +27,6 @@ let settings: ExtensionSettings;
 const notifiedTurns = new Set<string>();
 const notifiedInputRequests = new Set<string>();
 const recentThreads = new Map<string, CodexThreadSnapshot>();
-const nativeCompletionProcesses = new Set<ReturnType<typeof spawn>>();
 let activeUsageAlertKeys = new Set<string>();
 let threadCompletionPollBootstrapped = false;
 let threadCompletionPollInFlight = false;
@@ -39,7 +36,7 @@ let fallbackTurnNotificationSequence = 0;
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Usage Status");
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
-  statusItem.command = "codexUsage.showDetails";
+  statusItem.command = "codexUsage.openSettings";
   context.subscriptions.push(output, statusItem);
 
   settings = getSettings();
@@ -79,10 +76,6 @@ export function deactivate(): void {
     refreshTimer = null;
   }
   client?.dispose();
-  for (const proc of nativeCompletionProcesses) {
-    proc.kill();
-  }
-  nativeCompletionProcesses.clear();
 }
 
 function registerCommands(context: vscode.ExtensionContext): void {
@@ -100,7 +93,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
       await resetUsage();
     }),
     vscode.commands.registerCommand("codexUsage.openSettings", async () => {
-      await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:thiscommonuser.codex-usage-status");
+      await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:synapticraft.codex-usage-status");
+    }),
+    vscode.commands.registerCommand("codexUsage.openLogs", () => {
+      output.show();
     })
   );
 }
@@ -129,16 +125,8 @@ function createClient(): void {
       void showNotification(
         "warning",
         "Codex needs input",
-        message,
-        ["Go to Chat", "Show Usage"],
-        true
-      ).then((action) => {
-        if (action === "Go to Chat") {
-          void openCodexChat(event.threadId);
-        } else if (action === "Show Usage") {
-          void showDetails();
-        }
-      });
+        message
+      );
     }
   });
   usageService = new UsageService(client);
@@ -186,7 +174,8 @@ async function refreshUsage(showToast = false): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Refresh failed: ${message}`);
     statusItem.text = "$(warning) Codex usage unavailable";
-    statusItem.tooltip = `Codex Usage Status could not read account usage.\n\n${message}`;
+    statusItem.tooltip =
+      `Codex Usage Status could not read account usage.\n\n${message}\n\nClick to open extension settings.`;
     statusItem.color = new vscode.ThemeColor("statusBarItem.errorForeground");
     statusItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
     statusItem.accessibilityInformation = {
@@ -303,31 +292,7 @@ function notifyTurnCompleted(event: CodexTurnCompletedEvent, showToast = true): 
     enrichedEvent,
     typeof event.durationMs === "number" ? formatDuration(event.durationMs) : null
   );
-  const nativeNotificationsEnabled =
-    settings.notificationMode === "native" || settings.notificationMode === "both";
-
-  if (shouldShowNativeCompletionAlert(vscode.window.state.focused, nativeNotificationsEnabled)) {
-    void showNativeCompletionNotification(
-      "Codex chat complete",
-      `${presentation.message} Click to go to this chat.`
-    ).then((goToChat) => {
-      if (goToChat) {
-        void openCodexChat(event.threadId);
-      }
-    });
-  }
-
-  void showVscodeNotification(
-    "info",
-    presentation.message,
-    ["Go to Chat", "Show Usage"]
-  ).then((action) => {
-    if (action === "Go to Chat") {
-      void openCodexChat(event.threadId);
-    } else if (action === "Show Usage") {
-      void showDetails();
-    }
-  });
+  void showCompletionNotification("Codex chat complete", presentation.message);
 }
 
 function getTurnNotificationKey(event: CodexTurnCompletedEvent): string {
@@ -356,28 +321,15 @@ function notifyUsageWarnings(snapshot: NormalizedUsageSnapshot): void {
     return;
   }
 
-  void showUsageAlert(evaluation.alerts, snapshot);
+  void showUsageAlert(evaluation.alerts);
 }
 
-async function showUsageAlert(alerts: UsageAlert[], snapshot: NormalizedUsageSnapshot): Promise<void> {
-  const actions = ["Show Usage"];
-  if ((snapshot.resetCredits?.availableCount ?? 0) > 0) {
-    actions.push("Use Reset Credit");
-  }
-
-  const action = await showNotification(
+async function showUsageAlert(alerts: UsageAlert[]): Promise<void> {
+  await showNotification(
     "warning",
     alerts.some((alert) => alert.kind === "limit") ? "Codex usage limit reached" : "Codex usage warning",
-    formatUsageAlertMessage(alerts),
-    actions,
-    true
+    formatUsageAlertMessage(alerts)
   );
-
-  if (action === "Show Usage") {
-    await showDetails();
-  } else if (action === "Use Reset Credit") {
-    await resetUsage();
-  }
 }
 
 async function showDetails(): Promise<void> {
@@ -389,20 +341,12 @@ async function showDetails(): Promise<void> {
     return;
   }
 
-  const action = await vscode.window.showQuickPick(buildUsageQuickPickItems(latestSnapshot, settings), {
+  await vscode.window.showQuickPick(buildUsageQuickPickItems(latestSnapshot, settings), {
     title: "Codex Usage",
-    placeHolder: "Select an action, or inspect a usage bucket.",
+    placeHolder: "Inspect account and usage bucket details.",
     matchOnDescription: true,
     matchOnDetail: true
   });
-
-  if (action?.action === "refresh") {
-    await refreshUsage(true);
-  } else if (action?.action === "openLogs") {
-    output.show();
-  } else if (action?.action === "resetUsage") {
-    await resetUsage();
-  }
 }
 
 async function restartAppServer(): Promise<void> {
@@ -492,30 +436,37 @@ async function showNotification(
   kind: "info" | "warning",
   title: string,
   message: string,
-  actions: string[] = [],
-  alwaysShowActions = false
-): Promise<string | undefined> {
+): Promise<void> {
   const wantsNative = settings.notificationMode === "native" || settings.notificationMode === "both";
   const nativeDelivered = wantsNative ? await showNativeNotification(kind, title, message) : false;
   const wantsVscode =
     settings.notificationMode === "vscode" ||
     settings.notificationMode === "both" ||
-    !nativeDelivered ||
-    (alwaysShowActions && actions.length > 0);
+    !nativeDelivered;
 
-  return wantsVscode ? showVscodeNotification(kind, message, actions) : undefined;
+  if (wantsVscode) {
+    await showVscodeNotification(kind, message);
+  }
 }
 
 function showVscodeNotification(
   kind: "info" | "warning",
   message: string,
-  actions: string[]
 ): Thenable<string | undefined> {
   if (kind === "warning") {
-    return vscode.window.showWarningMessage(message, ...actions);
+    return vscode.window.showWarningMessage(message);
   }
 
-  return vscode.window.showInformationMessage(message, ...actions);
+  return vscode.window.showInformationMessage(message);
+}
+
+async function showCompletionNotification(title: string, message: string): Promise<void> {
+  const plan = getCompletionNotificationPlan(vscode.window.state.focused, settings.notificationMode);
+  const nativeDelivered = plan.native ? await showNativeNotification("info", title, message) : false;
+
+  if (plan.vscode || (plan.native && !nativeDelivered)) {
+    await showVscodeNotification("info", message);
+  }
 }
 
 function showNativeNotification(
@@ -559,86 +510,4 @@ function showNativeNotification(
 
     proc.unref();
   });
-}
-
-function showNativeCompletionNotification(title: string, message: string): Promise<boolean> {
-  if (process.platform !== "linux") {
-    return Promise.resolve(false);
-  }
-
-  return new Promise((resolve) => {
-    let stdout = "";
-    let settled = false;
-    const finish = (goToChat: boolean): void => {
-      if (!settled) {
-        settled = true;
-        resolve(goToChat);
-      }
-    };
-    const proc = spawn(
-      "notify-send",
-      [
-        "--app-name=Codex Usage Status",
-        "--icon=code",
-        "--urgency=normal",
-        "--action=default=Go to Chat",
-        title,
-        message
-      ],
-      {
-        stdio: ["ignore", "pipe", "ignore"]
-      }
-    );
-    nativeCompletionProcesses.add(proc);
-
-    proc.stdout?.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-
-    proc.once("error", (error) => {
-      output.appendLine(`Actionable completion notification failed: ${error.message}`);
-      nativeCompletionProcesses.delete(proc);
-      finish(false);
-    });
-
-    proc.once("close", (code) => {
-      nativeCompletionProcesses.delete(proc);
-      if (code !== 0 && stdout.trim()) {
-        output.appendLine(`Actionable completion notification exited with code ${code ?? "unknown"}.`);
-      }
-      finish(isNativeGoToChatAction(stdout));
-    });
-  });
-}
-
-async function openCodexChat(threadId: string | null): Promise<void> {
-  const codexExtension = vscode.extensions.getExtension("openai.chatgpt");
-  if (!codexExtension) {
-    await vscode.window.showWarningMessage(
-      "The official Codex extension is not installed or enabled, so this chat cannot be opened."
-    );
-    return;
-  }
-
-  try {
-    await codexExtension.activate();
-    await vscode.commands.executeCommand("chatgpt.openSidebar");
-
-    const chatUri = threadId ? buildCodexIdeChatUri(vscode.env.uriScheme, threadId) : null;
-    if (!chatUri) {
-      return;
-    }
-
-    const opened = await vscode.env.openExternal(vscode.Uri.parse(chatUri));
-    if (!opened) {
-      output.appendLine(`Codex did not accept the chat route for thread ${threadId}.`);
-      await vscode.window.showWarningMessage(
-        "Codex opened, but this version of the official extension could not navigate to the completed chat."
-      );
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    output.appendLine(`Could not open Codex chat ${threadId ?? "unknown"}: ${message}`);
-    await vscode.window.showWarningMessage(`Could not open the completed Codex chat: ${message}`);
-  }
 }

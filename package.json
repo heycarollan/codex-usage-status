@@ -2,7 +2,7 @@
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
   "description": "Track Codex usage windows, reset timing, and reset-credit expiration details from VS Code.",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -46,7 +46,8 @@
     "onCommand:codexUsage.showDetails",
     "onCommand:codexUsage.restartAppServer",
     "onCommand:codexUsage.resetUsage",
-    "onCommand:codexUsage.openSettings"
+    "onCommand:codexUsage.openSettings",
+    "onCommand:codexUsage.openLogs"
   ],
   "main": "./dist/src/extension.js",
   "contributes": {
@@ -70,6 +71,10 @@
       {
         "command": "codexUsage.openSettings",
         "title": "Codex Usage: Open Settings"
+      },
+      {
+        "command": "codexUsage.openLogs",
+        "title": "Codex Usage: Open Logs"
       }
     ],
     "configuration": {
@@ -116,12 +121,12 @@
         "codexUsage.notifyUsageWarnings": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications when Codex 5-hour or 7-day usage crosses the warning threshold."
+          "description": "Notify when Codex 5-hour or 7-day usage crosses the warning threshold."
         },
         "codexUsage.notifyTurnComplete": {
           "type": "boolean",
           "default": true,
-          "description": "Show VS Code notifications for visible Codex turn completions, including chat identity and a Go to Chat action."
+          "description": "Notify for visible Codex turn completions, including the available chat, project, and branch identity."
         },
         "codexUsage.notifyNeedsInput": {
           "type": "boolean",
@@ -135,8 +140,13 @@
             "vscode",
             "both"
           ],
-          "default": "native",
-          "description": "Controls usage and input notification delivery and background completion alerts. Completion actions always use VS Code so Go to Chat works consistently."
+          "enumDescriptions": [
+            "Use Linux desktop notifications when available, with VS Code as a fallback.",
+            "Use VS Code notifications.",
+            "Use both Linux desktop and VS Code notifications when VS Code is unfocused."
+          ],
+          "default": "vscode",
+          "description": "Controls how Codex Usage Status delivers notifications. Exact-chat actions are not offered because the official Codex extension has no documented public navigation API."
         }
       }
     }
@@ -145,7 +155,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-0.1.7.vsix",
+    "package": "vsce package --out dist/codex-usage-status-0.1.8.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

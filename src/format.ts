@@ -32,10 +32,6 @@ export interface StatusPresentation {
   accessibilityLabel: string;
 }
 
-export interface UsageQuickPickItem extends vscode.QuickPickItem {
-  action?: "refresh" | "openLogs" | "resetUsage";
-}
-
 export function formatStatus(snapshot: NormalizedUsageSnapshot, settings: ExtensionSettings): StatusPresentation {
   const fiveHour = snapshot.codex.fiveHour;
   const sevenDay = snapshot.codex.sevenDay;
@@ -62,9 +58,9 @@ export function formatStatus(snapshot: NormalizedUsageSnapshot, settings: Extens
 export function buildUsageQuickPickItems(
   snapshot: NormalizedUsageSnapshot,
   settings: ExtensionSettings
-): UsageQuickPickItem[] {
+): vscode.QuickPickItem[] {
   const buckets = settings.showExtraBuckets ? snapshot.buckets : [snapshot.codex];
-  const items: UsageQuickPickItem[] = [];
+  const items: vscode.QuickPickItem[] = [];
 
   items.push({
     label: "$(graph) Account Summary",
@@ -100,33 +96,6 @@ export function buildUsageQuickPickItems(
       detail: formatBucketDetail(bucket)
     });
   }
-
-  if ((snapshot.resetCredits?.availableCount ?? 0) > 0) {
-    items.push({
-      label: "$(debug-restart) Use Reset Credit",
-      description: `${snapshot.resetCredits?.availableCount} available`,
-      detail: "Reset your current Codex rate-limit window. This asks for confirmation before consuming a credit.",
-      action: "resetUsage"
-    });
-  } else {
-    items.push({
-      label: "$(debug-restart) Use Reset Credit",
-      description: "No reset credits available",
-      detail: "Codex reported no reset credits for this account."
-    });
-  }
-
-  items.push({
-    label: "$(sync) Refresh",
-    description: "Read Codex usage again",
-    action: "refresh"
-  });
-
-  items.push({
-    label: "$(output) Open Logs",
-    description: "Show the Codex Usage Status output channel",
-    action: "openLogs"
-  });
 
   return items;
 }
@@ -180,6 +149,7 @@ function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSett
   }
 
   tooltip.appendMarkdown(`\n\n_Last refreshed ${snapshot.fetchedAt.toLocaleString()}_`);
+  tooltip.appendMarkdown("\n\n_Click to open Codex Usage Status settings._");
   return tooltip;
 }
 

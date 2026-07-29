@@ -1,30 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  buildCodexIdeChatUri,
   formatChatCompletion,
-  isNativeGoToChatAction,
-  shouldShowNativeCompletionAlert
+  getCompletionNotificationPlan
 } from "../src/chatNotifications";
 
-test("uses a native completion alert only when VS Code is unfocused and native alerts are enabled", () => {
-  assert.equal(shouldShowNativeCompletionAlert(false, true), true);
-  assert.equal(shouldShowNativeCompletionAlert(true, true), false);
-  assert.equal(shouldShowNativeCompletionAlert(false, false), false);
-});
-
-test("recognizes the freedesktop default notification click action", () => {
-  assert.equal(isNativeGoToChatAction("default\n"), true);
-  assert.equal(isNativeGoToChatAction(""), false);
-  assert.equal(isNativeGoToChatAction("dismissed\n"), false);
-});
-
-test("builds the current Codex IDE route for an exact thread", () => {
-  assert.equal(
-    buildCodexIdeChatUri("vscode", "thread/with spaces"),
-    "vscode://openai.chatgpt/local/thread%2Fwith%20spaces"
-  );
-  assert.equal(buildCodexIdeChatUri("vscode", "unknown"), null);
+test("plans completion delivery from focus state and the configured mode", () => {
+  assert.deepEqual(getCompletionNotificationPlan(true, "native"), { native: false, vscode: true });
+  assert.deepEqual(getCompletionNotificationPlan(false, "native"), { native: true, vscode: false });
+  assert.deepEqual(getCompletionNotificationPlan(false, "vscode"), { native: false, vscode: true });
+  assert.deepEqual(getCompletionNotificationPlan(false, "both"), { native: true, vscode: true });
 });
 
 test("formats a completion with stable chat, project, and branch identity", () => {

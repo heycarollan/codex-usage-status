@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8
+
+- Remove unreliable exact-chat notification actions that depended on the official Codex extension's undocumented private route.
+- Make VS Code notifications the default and honor the configured VS Code, native Linux, or combined notification mode without duplicate action toasts.
+- Open the correct extension settings page from the status-bar pulse and keep the usage details picker informational.
+- Keep refresh, reset-credit use, app-server restart, settings, and details available as explicit Command Palette commands.
+
 ## 0.1.7
 
 - Explicitly consume the available reset credit with the nearest expiration when Codex provides per-credit IDs.

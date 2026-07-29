@@ -17,10 +17,10 @@ The extension talks to the local Codex app-server and reads:
 - Readable hover tooltip with separate usage windows, reset times, per-credit grant and expiration details, account, and token sections.
 - Quick Pick details view for Codex and model-specific buckets.
 - Manual refresh and app-server restart commands.
-- Optional native Linux and VS Code notifications for high usage and input/approval events. Completion notifications identify the chat, project, and Git branch when Codex provides them, with a background desktop alert when VS Code is unfocused.
-- Actionable completion notifications with **Go to Chat** and **Show Usage** buttons.
+- Configurable VS Code and native Linux notifications for high usage, input/approval events, and completed turns. Completion notifications identify the chat, project, and Git branch when Codex provides them.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Configurable refresh interval, warning threshold, and executable path.
+- Status-bar pulse and usage display opens the extension's Settings page.
 
 ## Reset credits
 
@@ -35,6 +35,7 @@ The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palett
 - `Codex Usage: Restart App Server`
 - `Codex Usage: Use Reset Credit`
 - `Codex Usage: Open Settings`
+- `Codex Usage: Open Logs`
 
 ## Requirements
 
@@ -53,19 +54,23 @@ The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palett
 | `codexUsage.warnAtPercent` | `90` | Highlight the status bar at this usage percentage. |
 | `codexUsage.requestTimeoutMs` | `12000` | Timeout for app-server requests. |
 | `codexUsage.notifyUsageWarnings` | `true` | Notify when 5-hour or 7-day usage crosses the warning threshold. |
-| `codexUsage.notifyTurnComplete` | `true` | Show a VS Code notification for visible turn completions with chat identity and a **Go to Chat** action. |
+| `codexUsage.notifyTurnComplete` | `true` | Notify for visible turn completions with the available chat identity. |
 | `codexUsage.notifyNeedsInput` | `true` | Notify when this app-server connection is asked for input or approval. |
-| `codexUsage.notificationMode` | `native` | Use Linux desktop notifications, VS Code notifications, or both. |
+| `codexUsage.notificationMode` | `vscode` | Use VS Code notifications, native Linux notifications, or both. |
 
 ## Notifications
 
 Codex Usage Status refreshes usage on an interval and notifies once when a reported 5-hour or 7-day window crosses `codexUsage.warnAtPercent`. Missing windows display as `N/A` and do not trigger alerts. The alert re-arms after usage drops below the threshold.
 
-Completion notifications always use VS Code's notification UI so the **Go to Chat** and **Show Usage** buttons behave consistently. When VS Code is minimized or unfocused and `codexUsage.notificationMode` is `native` or `both`, the extension also sends a Linux desktop alert so the completion remains visible in the background. Clicking that desktop alert invokes **Go to Chat** for the completed thread.
+The default `vscode` mode uses VS Code's bottom-right notification UI. In `native` mode, an unfocused VS Code window uses a Linux desktop notification and falls back to VS Code when native delivery is unavailable. `both` sends both while VS Code is unfocused.
 
 Completion notifications use the Codex thread name, workspace folder, and Git branch when available. When Codex does not provide a name, the notification uses a short, non-color thread identifier so parallel chats remain distinguishable without relying on color alone.
 
-Completion and input notifications fire for events visible to this extension's app-server connection. The official Codex extension may use a separate private app-server process, so cross-panel notifications depend on whether Codex exposes those events to this companion connection. Exact-chat navigation is a best-effort integration with the current official Codex IDE route; if that route is unavailable, Codex Usage Status opens the Codex sidebar instead.
+Completion and input notifications fire for events visible to this extension's app-server connection. The official Codex extension may use a separate private app-server process, so cross-panel notifications depend on whether Codex exposes those events to this companion connection.
+
+Codex Usage Status does not offer an exact-chat click action. The official Codex extension does not currently document a public command or URI for opening an existing thread by ID, and relying on its private route caused unreliable navigation. The notification still includes the best available chat, project, and branch identity so the completed work can be found without depending on that private interface.
+
+Click the status-bar pulse and usage display to open every extension setting. Usage details, refresh, reset-credit use, app-server restart, and logs remain explicit commands in the Command Palette; reset-credit use still requires confirmation.
 
 ## Privacy
 

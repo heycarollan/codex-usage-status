@@ -1,28 +1,25 @@
 import type { CodexTurnCompletedEvent } from "./codexAppServerClient";
+import type { ExtensionSettings } from "./types";
 
-const CODEX_EXTENSION_ID = "openai.chatgpt";
 const MAX_CHAT_NAME_LENGTH = 72;
 
 export interface ChatCompletionPresentation {
   message: string;
 }
 
-export function shouldShowNativeCompletionAlert(windowFocused: boolean, nativeNotificationsEnabled: boolean): boolean {
-  return !windowFocused && nativeNotificationsEnabled;
+export interface CompletionNotificationPlan {
+  native: boolean;
+  vscode: boolean;
 }
 
-export function isNativeGoToChatAction(output: string): boolean {
-  return output.trim().split(/\s+/)[0] === "default";
-}
-
-export function buildCodexIdeChatUri(uriScheme: string, threadId: string): string | null {
-  const scheme = uriScheme.trim();
-  const id = threadId.trim();
-  if (!scheme || !id || id === "unknown") {
-    return null;
-  }
-
-  return `${scheme}://${CODEX_EXTENSION_ID}/local/${encodeURIComponent(id)}`;
+export function getCompletionNotificationPlan(
+  windowFocused: boolean,
+  mode: ExtensionSettings["notificationMode"]
+): CompletionNotificationPlan {
+  return {
+    native: !windowFocused && (mode === "native" || mode === "both"),
+    vscode: windowFocused || mode === "vscode" || mode === "both"
+  };
 }
 
 export function formatChatCompletion(
