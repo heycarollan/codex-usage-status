@@ -20,7 +20,7 @@ The extension talks to the local Codex app-server and reads:
 - Configurable VS Code and native Linux notifications for high usage, input/approval events, and completed turns. Completion notifications identify the chat, project, and Git branch when Codex provides them.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Configurable refresh interval, warning threshold, and executable path.
-- Status-bar pulse and usage display opens the extension's Settings page.
+- Dedicated status-bar pulse button opens the extension's Settings page; the usage display opens informational details.
 
 ## Reset credits
 
@@ -70,7 +70,7 @@ Completion and input notifications fire for events visible to this extension's a
 
 Codex Usage Status does not offer an exact-chat click action. The official Codex extension does not currently document a public command or URI for opening an existing thread by ID, and relying on its private route caused unreliable navigation. The notification still includes the best available chat, project, and branch identity so the completed work can be found without depending on that private interface.
 
-Click the status-bar pulse and usage display to open every extension setting. Usage details, refresh, reset-credit use, app-server restart, and logs remain explicit commands in the Command Palette; reset-credit use still requires confirmation.
+Click the dedicated status-bar pulse to open every extension setting, or use **Open Settings** directly from the usage tooltip. Click the usage display for informational account and bucket details. Refresh, reset-credit use, app-server restart, logs, and settings remain explicit commands in the Command Palette; reset-credit use still requires confirmation.
 
 ## Privacy
 

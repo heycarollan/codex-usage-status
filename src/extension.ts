@@ -10,7 +10,7 @@ import {
   getCompletionNotificationPlan
 } from "./chatNotifications";
 import { getSettings } from "./config";
-import { buildUsageQuickPickItems, formatStatus } from "./format";
+import { buildUnavailableStatusTooltip, buildUsageQuickPickItems, formatStatus } from "./format";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { selectEarliestExpiringResetCredit, UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
@@ -20,6 +20,7 @@ const THREAD_COMPLETION_POLL_LIMIT = 8;
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
 let statusItem: vscode.StatusBarItem;
+let settingsItem: vscode.StatusBarItem;
 let output: vscode.OutputChannel;
 let refreshTimer: NodeJS.Timeout | null = null;
 let latestSnapshot: NormalizedUsageSnapshot | null = null;
@@ -36,8 +37,16 @@ let fallbackTurnNotificationSequence = 0;
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Usage Status");
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
-  statusItem.command = "codexUsage.openSettings";
-  context.subscriptions.push(output, statusItem);
+  statusItem.command = "codexUsage.showDetails";
+  settingsItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+  settingsItem.text = "$(pulse)";
+  settingsItem.command = "codexUsage.openSettings";
+  settingsItem.tooltip = "Open Codex Usage Status settings";
+  settingsItem.accessibilityInformation = {
+    label: "Open Codex Usage Status settings",
+    role: "button"
+  };
+  context.subscriptions.push(output, statusItem, settingsItem);
 
   settings = getSettings();
   createClient();
@@ -65,6 +74,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   statusItem.text = "$(sync~spin) Codex refreshing...";
   statusItem.show();
+  settingsItem.show();
   schedulePolling();
   void refreshUsage();
   void pollThreadCompletions();
@@ -174,8 +184,7 @@ async function refreshUsage(showToast = false): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Refresh failed: ${message}`);
     statusItem.text = "$(warning) Codex usage unavailable";
-    statusItem.tooltip =
-      `Codex Usage Status could not read account usage.\n\n${message}\n\nClick to open extension settings.`;
+    statusItem.tooltip = buildUnavailableStatusTooltip(message);
     statusItem.color = new vscode.ThemeColor("statusBarItem.errorForeground");
     statusItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
     statusItem.accessibilityInformation = {

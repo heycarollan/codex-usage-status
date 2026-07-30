@@ -43,7 +43,7 @@ export function formatStatus(snapshot: NormalizedUsageSnapshot, settings: Extens
   const overLimit = (fiveHour?.usedPercent ?? 0) >= 100 || (sevenDay?.usedPercent ?? 0) >= 100;
 
   return {
-    text: `$(pulse) Codex: 5h ${fiveText} · 7d ${sevenText}`,
+    text: `Codex: 5h ${fiveText} · 7d ${sevenText}`,
     tooltip: buildTooltip(snapshot, settings),
     color: overWarning ? new vscode.ThemeColor("statusBarItem.warningForeground") : undefined,
     backgroundColor: overLimit
@@ -53,6 +53,14 @@ export function formatStatus(snapshot: NormalizedUsageSnapshot, settings: Extens
         : undefined,
     accessibilityLabel: `Codex usage: 5 hour ${fiveText}, 7 day ${sevenText}`
   };
+}
+
+export function buildUnavailableStatusTooltip(message: string): vscode.MarkdownString {
+  const tooltip = createTrustedTooltip();
+  tooltip.appendMarkdown("### Codex Usage Unavailable\n\n");
+  tooltip.appendText(message);
+  appendSettingsAction(tooltip);
+  return tooltip;
 }
 
 export function buildUsageQuickPickItems(
@@ -101,9 +109,7 @@ export function buildUsageQuickPickItems(
 }
 
 function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSettings): vscode.MarkdownString {
-  const tooltip = new vscode.MarkdownString(undefined, true);
-  tooltip.isTrusted = false;
-  tooltip.supportHtml = false;
+  const tooltip = createTrustedTooltip();
   tooltip.appendMarkdown("### Codex Usage\n\n");
   tooltip.appendMarkdown(formatBucketMarkdown(snapshot.codex, true));
 
@@ -149,8 +155,21 @@ function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSett
   }
 
   tooltip.appendMarkdown(`\n\n_Last refreshed ${snapshot.fetchedAt.toLocaleString()}_`);
-  tooltip.appendMarkdown("\n\n_Click to open Codex Usage Status settings._");
+  appendSettingsAction(tooltip);
   return tooltip;
+}
+
+function createTrustedTooltip(): vscode.MarkdownString {
+  const tooltip = new vscode.MarkdownString(undefined, true);
+  tooltip.isTrusted = {
+    enabledCommands: ["codexUsage.openSettings"]
+  };
+  tooltip.supportHtml = false;
+  return tooltip;
+}
+
+function appendSettingsAction(tooltip: vscode.MarkdownString): void {
+  tooltip.appendMarkdown("\n\n---\n\n[$(settings-gear) Open Settings](command:codexUsage.openSettings)");
 }
 
 function formatBucketMarkdown(bucket: NormalizedUsageBucket, primary: boolean): string {
