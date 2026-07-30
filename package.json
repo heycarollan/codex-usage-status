@@ -43,7 +43,6 @@
   "activationEvents": [
     "onStartupFinished",
     "onCommand:codexUsage.refresh",
-    "onCommand:codexUsage.showDetails",
     "onCommand:codexUsage.restartAppServer",
     "onCommand:codexUsage.resetUsage",
     "onCommand:codexUsage.openSettings",
@@ -55,10 +54,6 @@
       {
         "command": "codexUsage.refresh",
         "title": "Codex Usage: Refresh"
-      },
-      {
-        "command": "codexUsage.showDetails",
-        "title": "Codex Usage: Show Details"
       },
       {
         "command": "codexUsage.restartAppServer",
@@ -94,7 +89,7 @@
         "codexUsage.showExtraBuckets": {
           "type": "boolean",
           "default": true,
-          "description": "Show model-specific Codex usage buckets in the details tooltip and command."
+          "description": "Show model-specific Codex usage buckets in the tooltip and Codex Usage Settings."
         },
         "codexUsage.statusFormat": {
           "type": "string",

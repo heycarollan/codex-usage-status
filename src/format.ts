@@ -1,16 +1,11 @@
 import * as vscode from "vscode";
 import {
-  formatBucketSummary,
-  formatDetails,
   formatInteger,
-  formatRecentDailyUsage,
   formatRecentTokenTotal,
   formatResetCreditExpiry,
-  formatResetCreditsDetails,
   formatResetCreditType,
   formatResetShort,
   formatResetTime,
-  formatWindowLine,
   formatWindowPercent,
   formatWindowRemaining
 } from "./formatCore";
@@ -61,51 +56,6 @@ export function buildUnavailableStatusTooltip(message: string): vscode.MarkdownS
   tooltip.appendText(message);
   appendSettingsAction(tooltip);
   return tooltip;
-}
-
-export function buildUsageQuickPickItems(
-  snapshot: NormalizedUsageSnapshot,
-  settings: ExtensionSettings
-): vscode.QuickPickItem[] {
-  const buckets = settings.showExtraBuckets ? snapshot.buckets : [snapshot.codex];
-  const items: vscode.QuickPickItem[] = [];
-
-  items.push({
-    label: "$(graph) Account Summary",
-    description: snapshot.codex.planType ? `Plan: ${snapshot.codex.planType}` : undefined,
-    detail: [
-      formatResetCreditsDetails(snapshot.resetCredits),
-      snapshot.codex.credits
-        ? `Credits: ${snapshot.codex.credits.unlimited ? "unlimited" : snapshot.codex.credits.balance ?? "unknown"}`
-        : null,
-      snapshot.tokenUsage?.summary
-        ? `Lifetime tokens: ${formatInteger(snapshot.tokenUsage.summary.lifetimeTokens)}`
-        : null,
-      snapshot.tokenUsage?.summary
-        ? `Peak daily tokens: ${formatInteger(snapshot.tokenUsage.summary.peakDailyTokens)}`
-        : null,
-      snapshot.tokenUsage?.summary
-        ? `Current streak: ${formatInteger(snapshot.tokenUsage.summary.currentStreakDays)} days`
-        : null,
-      snapshot.tokenUsage?.dailyUsageBuckets
-        ? `Last 7 days tokens: ${formatRecentTokenTotal(snapshot.tokenUsage.dailyUsageBuckets)}`
-        : null,
-      snapshot.tokenUsage?.dailyUsageBuckets
-        ? `Recent daily tokens:\n${formatRecentDailyUsage(snapshot.tokenUsage.dailyUsageBuckets)}`
-        : null,
-      `Last refreshed: ${snapshot.fetchedAt.toLocaleString()}`
-    ].filter((item): item is string => Boolean(item)).join("\n")
-  });
-
-  for (const bucket of buckets) {
-    items.push({
-      label: bucket.isPrimaryCodex ? "$(pulse) Codex" : `$(symbol-misc) ${bucket.name}`,
-      description: formatBucketSummary(bucket),
-      detail: formatBucketDetail(bucket)
-    });
-  }
-
-  return items;
 }
 
 function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSettings): vscode.MarkdownString {
@@ -181,24 +131,6 @@ function formatBucketMarkdown(bucket: NormalizedUsageBucket, primary: boolean): 
     `| 5 hours | \`${formatWindowPercent(bucket.fiveHour)}\` | ${formatResetCell(bucket.fiveHour)} |`,
     `| 7 days | \`${formatWindowPercent(bucket.sevenDay)}\` | ${formatResetCell(bucket.sevenDay)} |`
   ];
-
-  return lines.join("\n");
-}
-
-function formatBucketDetail(bucket: NormalizedUsageBucket): string {
-  const lines = [
-    `5-hour: ${formatWindowLine(bucket.fiveHour)}`,
-    `7-day: ${formatWindowLine(bucket.sevenDay)}`
-  ];
-
-  if (bucket.planType) {
-    lines.push(`Plan: ${bucket.planType}`);
-  }
-
-  if (bucket.credits) {
-    const balance = bucket.credits.unlimited ? "unlimited" : bucket.credits.balance ?? "unknown";
-    lines.push(`Credits: ${balance}`);
-  }
 
   return lines.join("\n");
 }

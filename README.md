@@ -9,29 +9,28 @@ Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/item
 The extension talks to the local Codex app-server and reads:
 
 - `account/rateLimits/read` for the usage windows Codex currently reports.
-- `account/usage/read` for daily token usage summaries in the details view.
+- `account/usage/read` for daily token usage summaries in the settings editor.
 
 ## Features
 
 - Status bar display: `Codex: 5h N/A · 7d 9%` when Codex reports only a 7-day window. A 5-hour percentage appears automatically when the API provides that window.
 - Readable hover tooltip with separate usage windows, reset times, per-credit grant and expiration details, account, and token sections.
-- Quick Pick details view for Codex and model-specific buckets.
+- Unified Codex Usage Settings editor with live account, token, bucket, and reset-credit details.
 - Manual refresh and app-server restart commands.
 - Configurable VS Code and native Linux notifications for high usage, input/approval events, and completed turns. Completion notifications identify the chat, project, and Git branch when Codex provides them.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Configurable refresh interval, warning threshold, and executable path.
-- Dedicated status-bar pulse button opens the extension's Settings page; the usage display opens informational details.
+- Both the status-bar usage display and dedicated pulse button open the unified settings editor.
 
 ## Reset credits
 
 Codex Usage Status does more than display when usage windows reset. When Codex reports reset credits for your account, the hover tooltip shows each credit's title, status, grant time, expiration time, scope, and description. Older Codex versions that provide only the available count are labeled accordingly.
 
-The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palette and details Quick Pick. The command asks for confirmation, explicitly uses the available credit closest to expiration, then refreshes usage so you can see the new state immediately. Credits without an expiration are used after expiring credits. When an older Codex version does not provide per-credit IDs, Codex chooses the credit automatically.
+The settings editor includes a **Use reset credit** button with the available count, status, scope, grant time, expiration, and short credit description. The action asks for confirmation, explicitly uses the available credit closest to expiration, then refreshes usage immediately. Credits without an expiration are used after expiring credits. When an older Codex version does not provide per-credit IDs, Codex chooses the credit automatically.
 
 ## Commands
 
 - `Codex Usage: Refresh`
-- `Codex Usage: Show Details`
 - `Codex Usage: Restart App Server`
 - `Codex Usage: Use Reset Credit`
 - `Codex Usage: Open Settings`
@@ -44,6 +43,8 @@ The extension also exposes `Codex Usage: Use Reset Credit` in the Command Palett
 - A Codex login that works with `codex app-server`.
 
 ## Settings
+
+Click either Codex status-bar item to open **Codex Usage Settings**. It combines all extension preferences with live usage, account, token, bucket, and reset-credit information. Refresh, restart, logs, and guarded reset-credit use are available from the same editor; the former Quick Pick popup is no longer used.
 
 | Setting | Default | Description |
 | --- | --- | --- |
@@ -70,7 +71,7 @@ Completion and input notifications fire for events visible to this extension's a
 
 Codex Usage Status does not offer an exact-chat click action. The official Codex extension does not currently document a public command or URI for opening an existing thread by ID, and relying on its private route caused unreliable navigation. The notification still includes the best available chat, project, and branch identity so the completed work can be found without depending on that private interface.
 
-Click the dedicated status-bar pulse to open every extension setting, or use **Open Settings** directly from the usage tooltip. Click the usage display for informational account and bucket details. Refresh, reset-credit use, app-server restart, logs, and settings remain explicit commands in the Command Palette; reset-credit use still requires confirmation.
+Click the dedicated status-bar pulse, the usage display, or **Open Settings** in the tooltip to open the unified settings editor. Refresh, reset-credit use, app-server restart, and logs remain explicit Command Palette commands; reset-credit use still requires confirmation.
 
 ## Privacy
 

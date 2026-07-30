@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import {
   CodexAppServerClient,
@@ -10,7 +11,8 @@ import {
   getCompletionNotificationPlan
 } from "./chatNotifications";
 import { getSettings } from "./config";
-import { buildUnavailableStatusTooltip, buildUsageQuickPickItems, formatStatus } from "./format";
+import { buildUnavailableStatusTooltip, formatStatus } from "./format";
+import { normalizeSettingUpdate, renderSettingsView } from "./settingsView";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { selectEarliestExpiringResetCredit, UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
@@ -21,9 +23,11 @@ let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
 let statusItem: vscode.StatusBarItem;
 let settingsItem: vscode.StatusBarItem;
+let settingsPanel: vscode.WebviewPanel | null = null;
 let output: vscode.OutputChannel;
 let refreshTimer: NodeJS.Timeout | null = null;
 let latestSnapshot: NormalizedUsageSnapshot | null = null;
+let latestUsageError: string | null = null;
 let settings: ExtensionSettings;
 const notifiedTurns = new Set<string>();
 const notifiedInputRequests = new Set<string>();
@@ -37,7 +41,7 @@ let fallbackTurnNotificationSequence = 0;
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Usage Status");
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
-  statusItem.command = "codexUsage.showDetails";
+  statusItem.command = "codexUsage.openSettings";
   settingsItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
   settingsItem.text = "$(pulse)";
   settingsItem.command = "codexUsage.openSettings";
@@ -67,6 +71,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       schedulePolling();
+      renderSettingsPanel();
       void refreshUsage();
       void pollThreadCompletions();
     })
@@ -94,7 +99,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
       await refreshUsage(true);
     }),
     vscode.commands.registerCommand("codexUsage.showDetails", async () => {
-      await showDetails();
+      openSettingsPanel(context);
     }),
     vscode.commands.registerCommand("codexUsage.restartAppServer", async () => {
       await restartAppServer();
@@ -103,7 +108,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
       await resetUsage();
     }),
     vscode.commands.registerCommand("codexUsage.openSettings", async () => {
-      await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:synapticraft.codex-usage-status");
+      openSettingsPanel(context);
     }),
     vscode.commands.registerCommand("codexUsage.openLogs", () => {
       output.show();
@@ -164,6 +169,7 @@ async function refreshUsage(showToast = false): Promise<void> {
 
   try {
     latestSnapshot = await usageService!.readUsage();
+    latestUsageError = null;
     const presentation = formatStatus(latestSnapshot, settings);
     statusItem.text = presentation.text;
     statusItem.tooltip = presentation.tooltip;
@@ -180,8 +186,10 @@ async function refreshUsage(showToast = false): Promise<void> {
     }
 
     notifyUsageWarnings(latestSnapshot);
+    renderSettingsPanel();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    latestUsageError = message;
     output.appendLine(`Refresh failed: ${message}`);
     statusItem.text = "$(warning) Codex usage unavailable";
     statusItem.tooltip = buildUnavailableStatusTooltip(message);
@@ -205,6 +213,8 @@ async function refreshUsage(showToast = false): Promise<void> {
         await restartAppServer();
       }
     }
+
+    renderSettingsPanel();
   }
 }
 
@@ -341,34 +351,21 @@ async function showUsageAlert(alerts: UsageAlert[]): Promise<void> {
   );
 }
 
-async function showDetails(): Promise<void> {
-  if (!latestSnapshot) {
-    await refreshUsage(true);
-  }
-
-  if (!latestSnapshot) {
-    return;
-  }
-
-  await vscode.window.showQuickPick(buildUsageQuickPickItems(latestSnapshot, settings), {
-    title: "Codex Usage",
-    placeHolder: "Inspect account and usage bucket details.",
-    matchOnDescription: true,
-    matchOnDetail: true
-  });
-}
-
 async function restartAppServer(): Promise<void> {
   statusItem.text = "$(sync~spin) Codex restarting...";
   latestSnapshot = null;
+  latestUsageError = null;
+  renderSettingsPanel();
 
   try {
     await client?.restart();
     await refreshUsage(true);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    latestUsageError = message;
     output.appendLine(`Restart failed: ${message}`);
     vscode.window.showErrorMessage(`Codex app-server restart failed: ${message}`);
+    renderSettingsPanel();
   }
 }
 
@@ -380,6 +377,7 @@ async function resetUsage(): Promise<void> {
   const availableCount = latestSnapshot?.resetCredits?.availableCount ?? 0;
   if (availableCount <= 0) {
     vscode.window.showInformationMessage("Codex reported no reset credits available.");
+    renderSettingsPanel();
     return;
   }
 
@@ -397,6 +395,7 @@ async function resetUsage(): Promise<void> {
   );
 
   if (confirmation !== "Use Reset Credit") {
+    renderSettingsPanel();
     return;
   }
 
@@ -411,7 +410,120 @@ async function resetUsage(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Reset credit failed: ${message}`);
     vscode.window.showErrorMessage(`Could not use Codex reset credit: ${message}`);
+    renderSettingsPanel();
   }
+}
+
+function openSettingsPanel(context: vscode.ExtensionContext): void {
+  if (settingsPanel) {
+    settingsPanel.reveal(vscode.ViewColumn.Active);
+    renderSettingsPanel();
+    void refreshUsage();
+    return;
+  }
+
+  const panel = vscode.window.createWebviewPanel(
+    "codexUsage.settings",
+    "Codex Usage Settings",
+    vscode.ViewColumn.Active,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true
+    }
+  );
+  settingsPanel = panel;
+  context.subscriptions.push(panel);
+
+  const panelDisposables: vscode.Disposable[] = [];
+  panel.webview.onDidReceiveMessage(
+    async (message: unknown) => {
+      await handleSettingsMessage(panel, message);
+    },
+    undefined,
+    panelDisposables
+  );
+  panel.onDidDispose(() => {
+    settingsPanel = null;
+    for (const disposable of panelDisposables) {
+      disposable.dispose();
+    }
+  });
+
+  renderSettingsPanel();
+  void refreshUsage();
+}
+
+async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
+  if (!message || typeof message !== "object") {
+    return;
+  }
+
+  const payload = message as {
+    type?: unknown;
+    command?: unknown;
+    key?: unknown;
+    value?: unknown;
+  };
+
+  if (payload.type === "command") {
+    switch (payload.command) {
+      case "refresh":
+        await refreshUsage();
+        return;
+      case "restart":
+        await restartAppServer();
+        return;
+      case "logs":
+        output.show();
+        return;
+      case "reset":
+        await resetUsage();
+        return;
+      default:
+        return;
+    }
+  }
+
+  if (payload.type !== "updateSetting") {
+    return;
+  }
+
+  const update = normalizeSettingUpdate(payload.key, payload.value);
+  if (!update) {
+    await panel.webview.postMessage({
+      type: "settingError",
+      message: "That setting value is invalid."
+    });
+    return;
+  }
+
+  try {
+    await vscode.workspace
+      .getConfiguration("codexUsage")
+      .update(update.key, update.value, vscode.ConfigurationTarget.Global);
+    await panel.webview.postMessage({ type: "settingSaved" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Setting update failed: ${message}`);
+    await panel.webview.postMessage({
+      type: "settingError",
+      message: "Setting could not be saved."
+    });
+  }
+}
+
+function renderSettingsPanel(): void {
+  if (!settingsPanel) {
+    return;
+  }
+
+  settingsPanel.webview.html = renderSettingsView({
+    cspSource: settingsPanel.webview.cspSource,
+    nonce: randomBytes(18).toString("base64"),
+    settings,
+    snapshot: latestSnapshot,
+    errorMessage: latestUsageError
+  });
 }
 
 function formatResetOutcome(outcome: string): string {

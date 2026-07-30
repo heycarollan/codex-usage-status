@@ -4,8 +4,10 @@
 
 - Remove unreliable exact-chat notification actions that depended on the official Codex extension's undocumented private route.
 - Make VS Code notifications the default and honor the configured VS Code, native Linux, or combined notification mode without duplicate action toasts.
-- Add a dedicated status-bar pulse settings button and an Open Settings action to usage and error tooltips while keeping the usage details picker informational.
-- Keep refresh, reset-credit use, app-server restart, settings, and details available as explicit Command Palette commands.
+- Replace the status-bar Quick Pick with a unified settings editor containing every extension preference plus live usage, account, token, bucket, and reset-credit details.
+- Add Refresh, Restart Server, Open Logs, and guarded Use Reset Credit buttons to the settings editor with concise reset-credit descriptions.
+- Open the same settings editor from the usage display, dedicated pulse button, and tooltip action.
+- Keep refresh, reset-credit use, app-server restart, settings, and logs available as explicit Command Palette commands.
 
 ## 0.1.7
 
