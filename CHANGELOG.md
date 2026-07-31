@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1
+
+- Keep Remote Control runtime-only inside Codex Companion and coordinate a single relay-owning VS Code extension host, preventing older or parallel Companion app-server processes from reconnecting through a persisted Codex preference.
+- Shut Remote Control down ephemerally before app-server restart or extension deactivation, wait for the old child to exit, and prevent late exit events from invalidating or orphaning the replacement process.
+- Refresh every page of paired controller devices before **Remove Remote Connection**, report incomplete cleanup honestly, and keep removal limited to the supported disable and device-revocation APIs.
+- Explain that the supported Codex app-server API cannot list or delete saved Remote environments or force-refresh the ChatGPT phone app's active-chat list, with supported recovery steps for stale phone state.
+- Verify that Codex CLI 0.144.1 and the official VS Code extension's 0.146.0-alpha.9.2 bundle expose the same Remote lifecycle shape and reuse the existing environment across ephemeral disable, re-enable, and process restart.
+
 ## 1.1.0
 
 - Rename the Marketplace display name to **Codex Companion: Remote Control, Usage Status & Resets** while preserving the existing `synapticraft.codex-usage-status` identifier and upgrade path.

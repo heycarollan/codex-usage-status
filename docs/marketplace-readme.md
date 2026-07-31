@@ -30,9 +30,15 @@ When ChatGPT Remote is available for the account, the guided flow is designed to
 
 Once paired, ChatGPT supplies the full Codex remote interface over OpenAI's internet relay: start or continue chats, send and steer instructions, answer questions, review outputs and diffs, and approve or reject actions from outside the local network.
 
-The extension exposes no inbound network listener or raw app-server endpoint. Pairing artifacts remain in memory, expire automatically, and never enter extension logs. Remote availability can depend on the installed Codex version, ChatGPT rollout, account/workspace eligibility, and managed policy. The underlying `remoteControl/*` app-server API is currently experimental, and OpenAI's general Remote guide does not yet document IDE-based setup. This feature will require real-device pairing verification before release.
+The extension exposes no inbound network listener or raw app-server endpoint. Pairing artifacts remain in memory, expire automatically, and never enter extension logs. One Companion extension host owns the relay at a time so parallel VS Code windows do not start competing Remote connections. Remote availability can depend on the installed Codex version, ChatGPT rollout, account/workspace eligibility, and managed policy. The underlying `remoteControl/*` app-server API is currently experimental, and OpenAI's general Remote guide does not yet document IDE-based setup.
 
-Use **Remove Remote Connection** at the bottom of the section to disable the relay and revoke every currently listed paired device. The permanent Remote status-bar button lets you return and pair again later.
+Use **Remove Remote Connection** at the bottom of the section to refresh and revoke the supported paired-device list, then disable the relay. The permanent Remote status-bar button lets you return and pair again later.
+
+### If the phone chat list is stale
+
+Codex Companion does not render or store the ChatGPT phone interface. The supported Codex app-server methods can read relay status, pair and revoke controllers, and disable the local connection. They cannot list or delete saved Remote environments or force-refresh ChatGPT mobile's active-chat list.
+
+Try Disable and re-enable, **Restart App Server**, reload or fully restart VS Code, then **Remove Remote Connection** and pair again. Update and restart the ChatGPT mobile app too. If an old entry remains after that sequence, it is OpenAI Remote/ChatGPT synchronization state and cannot be removed by this extension through a supported API.
 
 ## Commands
 
@@ -58,7 +64,7 @@ Use **Remove Remote Connection** at the bottom of the section to disable the rel
 | `codexUsage.notifyNeedsInput` | `true` | Notify for visible input and approval requests. |
 | `codexUsage.notificationMode` | `vscode` | Use VS Code, native Linux, or both notification paths. |
 | `codexUsage.completionChatAction` | `exact` | Open the exact chat, sidebar, or no action. |
-| `codexUsage.remoteControlEnabled` | `false` | Reconnect to OpenAI's Remote Control relay while VS Code runs. |
+| `codexUsage.remoteControlEnabled` | `false` | Let one Companion window reconnect to OpenAI's Remote Control relay while VS Code runs. |
 
 ## Requirements and privacy
 

@@ -573,7 +573,7 @@ function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: b
   const pairDisabled = state.busy || !state.supported;
   const pairLabel = configuredEnabled ? "Create pairing code" : "Enable and create pairing code";
   const error = state.errorMessage
-    ? `<div class="notice"><strong>Remote control unavailable.</strong> ${escapeHtml(state.errorMessage)}</div>`
+    ? `<div class="notice"><strong>Remote control needs attention.</strong> ${escapeHtml(state.errorMessage)}</div>`
     : "";
   const pairing = state.pairing
     ? `<article class="card">
@@ -606,7 +606,7 @@ function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: b
           "remoteControlEnabled",
           "Enable remote access",
           configuredEnabled,
-          "Reconnect through OpenAI's secure internet relay whenever this extension starts."
+          "Reconnect through OpenAI's secure internet relay whenever this extension starts. One Companion window owns the relay at a time."
         )}
         <div class="actions">
           <button type="button" data-command="remotePair"${pairDisabled ? " disabled" : ""}>${pairLabel}</button>
@@ -617,15 +617,23 @@ function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: b
       <div class="card">
         <h3>How it works</h3>
         <p>Pair once, then use the ChatGPT mobile app from any internet connection to start or continue chats, send instructions, review outputs, and approve or reject actions.</p>
-        <p class="description">The computer must remain awake, online, and running VS Code. Pairing is opt-in. No local port or raw app-server endpoint is exposed.</p>
+        <p class="description">The computer must remain awake, online, and running VS Code. Pairing is opt-in. No local port or raw app-server endpoint is exposed. Codex Companion owns only the local relay lifecycle and paired-device grants; OpenAI's Remote service and ChatGPT app own the phone interface and its synchronized chat list.</p>
       </div>
     </div>
     ${pairing}
     <h3>Paired devices</h3>
     ${devices}
     <article class="card credit">
+      <h3>Phone chat list looks stale?</h3>
+      <p>Try Disable and re-enable, Restart App Server, reload or fully restart VS Code, then Remove Remote Connection and pair again. Update and restart the ChatGPT mobile app as well.</p>
+      <p class="description">The supported Codex app-server API can disable this relay and revoke controller devices, but it cannot list or delete saved Remote environments or force-refresh ChatGPT's active-chat list. Entries that remain after re-pairing are OpenAI Remote synchronization state, not chats rendered or stored by Codex Companion.</p>
+      <div class="actions">
+        <button type="button" class="secondary" data-command="restart"${disabled}>Restart App Server</button>
+      </div>
+    </article>
+    <article class="card credit">
       <h3>Remove remote connection</h3>
-      <p>Disconnect this computer and revoke every paired device listed above. The Remote button remains available, so you can set it up again whenever you want.</p>
+      <p>Turn off this window's relay and revoke every paired device returned by Codex. This does not delete OpenAI's saved Remote environment or clear the phone app's chat list.</p>
       <div class="actions">
         <button type="button" class="secondary" data-command="remoteRemove"${removeDisabled ? " disabled" : ""}>Remove Remote Connection</button>
       </div>

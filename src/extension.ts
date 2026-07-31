@@ -24,6 +24,7 @@ import {
   type RemoteControlPairingArtifact,
   type RemoteControlStatusSnapshot
 } from "./remoteControl";
+import { RemoteControlHostLease } from "./remoteControlLease";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { selectEarliestExpiringResetCredit, UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
@@ -34,6 +35,8 @@ const REMOTE_CONTROL_CONNECT_DELAY_MS = 500;
 const REMOTE_CONTROL_PAIRING_POLL_MS = 3000;
 const REMOTE_CONTROL_ONBOARDING_KEY = "codexCompanion.remoteControlOnboarding.v1";
 const REMOTE_CONTROL_SETUP_ACTION = "Set Up Remote Control";
+const REMOTE_CONTROL_OWNER_MESSAGE =
+  "Remote Control is already owned by another VS Code window. Close or disable it there; this window will take over automatically after the other extension host exits.";
 
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
@@ -65,6 +68,9 @@ let remoteControlPairing: RemoteControlPairingArtifact | null = null;
 let remoteControlClients: RemoteControlClientDevice[] = [];
 let remoteControlError: string | null = null;
 let remoteControlOnboardingHighlighted = false;
+let remoteControlOwnershipBlocked = false;
+let remoteControlPersistenceClearedForClient = false;
+let remoteControlLease: RemoteControlHostLease | null = null;
 
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Companion");
@@ -75,6 +81,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(output, statusItem, remoteStatusItem);
 
   settings = getSettings();
+  remoteControlLease = new RemoteControlHostLease();
   createClient();
   registerCommands(context);
   updateRemoteStatusItem();
@@ -122,7 +129,7 @@ export function activate(context: vscode.ExtensionContext): void {
   void pollThreadCompletions();
 }
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
   if (refreshTimer) {
     clearInterval(refreshTimer);
     refreshTimer = null;
@@ -131,7 +138,15 @@ export function deactivate(): void {
     clearInterval(remotePairingTimer);
     remotePairingTimer = null;
   }
-  client?.dispose();
+  const activeClient = client;
+  client = null;
+  usageService = null;
+  try {
+    await activeClient?.shutdown();
+  } finally {
+    remoteControlLease?.release();
+    remoteControlLease = null;
+  }
 }
 
 function registerCommands(context: vscode.ExtensionContext): void {
@@ -197,6 +212,7 @@ function createClient(): void {
   client = null;
   usageService = null;
   clientSetupError = null;
+  remoteControlPersistenceClearedForClient = false;
 
   let executable: string;
   try {
@@ -236,7 +252,9 @@ function createClient(): void {
     onRemoteControlStatusChanged: (status) => {
       applyRemoteControlStatus(status);
       remoteControlSupported = true;
-      remoteControlError = null;
+      if (!remoteControlOwnershipBlocked) {
+        remoteControlError = null;
+      }
       renderSettingsPanel();
       if (status.environmentId) {
         void refreshRemoteControlClients(status.environmentId).catch((error) => {
@@ -537,20 +555,15 @@ async function syncRemoteControlSetting(): Promise<void> {
   renderSettingsPanel();
 
   try {
-    let status = await client.getRemoteControlStatus();
-    if (settings.remoteControlEnabled && status.status !== "connected" && status.status !== "connecting") {
-      status = await client.enableRemoteControl();
-      output.appendLine("Remote control enabled.");
-    } else if (!settings.remoteControlEnabled && status.status !== "disabled") {
-      status = await client.disableRemoteControl();
-      remoteControlPairing = null;
-      clearRemotePairingTimer();
-      output.appendLine("Remote control disabled.");
-    }
+    const status = await reconcileRemoteControlStatus(
+      await client.getRemoteControlStatus()
+    );
 
     applyRemoteControlStatus(status);
     remoteControlSupported = true;
-    remoteControlError = null;
+    if (!remoteControlOwnershipBlocked) {
+      remoteControlError = null;
+    }
     if (status.environmentId) {
       await refreshRemoteControlClients(status.environmentId);
     }
@@ -569,10 +582,14 @@ async function refreshRemoteControl(showToast = false): Promise<void> {
 
   remoteControlPollInFlight = true;
   try {
-    const status = await client.getRemoteControlStatus();
+    const status = await reconcileRemoteControlStatus(
+      await client.getRemoteControlStatus()
+    );
     applyRemoteControlStatus(status);
     remoteControlSupported = true;
-    remoteControlError = null;
+    if (!remoteControlOwnershipBlocked) {
+      remoteControlError = null;
+    }
     if (status.environmentId) {
       await refreshRemoteControlClients(status.environmentId);
     }
@@ -590,6 +607,49 @@ async function refreshRemoteControl(showToast = false): Promise<void> {
   }
 }
 
+async function reconcileRemoteControlStatus(
+  initialStatus: RemoteControlStatusSnapshot
+): Promise<RemoteControlStatusSnapshot> {
+  if (!client) {
+    return initialStatus;
+  }
+
+  let status = initialStatus;
+  if (!settings.remoteControlEnabled) {
+    remoteControlOwnershipBlocked = false;
+    if (!remoteControlPersistenceClearedForClient || status.status !== "disabled") {
+      status = await client.disableRemoteControl(/*ephemeral*/ false);
+      remoteControlPersistenceClearedForClient = true;
+      remoteControlPairing = null;
+      clearRemotePairingTimer();
+      output.appendLine("Remote control disabled.");
+    }
+    remoteControlLease?.release();
+    return status;
+  }
+
+  if (!remoteControlLease?.tryAcquire()) {
+    remoteControlOwnershipBlocked = true;
+    remoteControlError = REMOTE_CONTROL_OWNER_MESSAGE;
+    if (!remoteControlPersistenceClearedForClient || status.status !== "disabled") {
+      status = await client.disableRemoteControl(/*ephemeral*/ false);
+      remoteControlPersistenceClearedForClient = true;
+    }
+    return status;
+  }
+
+  remoteControlOwnershipBlocked = false;
+  if (!remoteControlPersistenceClearedForClient) {
+    status = await client.disableRemoteControl(/*ephemeral*/ false);
+    remoteControlPersistenceClearedForClient = true;
+  }
+  if (status.status !== "connected" && status.status !== "connecting") {
+    status = await client.enableRemoteControl(/*ephemeral*/ true);
+    output.appendLine("Remote control enabled for this VS Code window.");
+  }
+  return status;
+}
+
 async function enableAndPairRemoteControl(): Promise<void> {
   if (!client || remoteControlBusy) {
     return;
@@ -600,6 +660,14 @@ async function enableAndPairRemoteControl(): Promise<void> {
   renderSettingsPanel();
 
   try {
+    if (!remoteControlLease?.tryAcquire()) {
+      remoteControlOwnershipBlocked = true;
+      remoteControlError = REMOTE_CONTROL_OWNER_MESSAGE;
+      vscode.window.showWarningMessage(REMOTE_CONTROL_OWNER_MESSAGE);
+      return;
+    }
+
+    remoteControlOwnershipBlocked = false;
     if (!settings.remoteControlEnabled) {
       await vscode.workspace
         .getConfiguration("codexUsage")
@@ -607,9 +675,10 @@ async function enableAndPairRemoteControl(): Promise<void> {
       settings = getSettings();
     }
 
-    let status = await client.enableRemoteControl();
+    let status = await reconcileRemoteControlStatus(
+      await client.getRemoteControlStatus()
+    );
     applyRemoteControlStatus(status);
-    output.appendLine("Remote control enabled.");
     status = await waitForRemoteControlConnection(status);
 
     if (status.status !== "connected") {
@@ -636,6 +705,9 @@ async function enableAndPairRemoteControl(): Promise<void> {
     setRemoteControlError(error);
     vscode.window.showErrorMessage(`Could not create a Codex remote-control pairing code: ${remoteControlError}`);
   } finally {
+    if (!settings.remoteControlEnabled) {
+      remoteControlLease?.release();
+    }
     remoteControlBusy = false;
     renderSettingsPanel();
   }
@@ -663,10 +735,13 @@ async function disableRemoteControl(): Promise<void> {
       .getConfiguration("codexUsage")
       .update("remoteControlEnabled", false, vscode.ConfigurationTarget.Global);
     settings = getSettings();
-    applyRemoteControlStatus(await client.disableRemoteControl());
+    applyRemoteControlStatus(await client.disableRemoteControl(/*ephemeral*/ false));
+    remoteControlPersistenceClearedForClient = true;
     remoteControlPairing = null;
     clearRemotePairingTimer();
+    remoteControlOwnershipBlocked = false;
     remoteControlError = null;
+    remoteControlLease?.release();
     output.appendLine("Remote control disabled.");
   } catch (error) {
     setRemoteControlError(error);
@@ -695,9 +770,15 @@ async function removeRemoteControl(): Promise<void> {
   renderSettingsPanel();
 
   const failedDevices: RemoteControlClientDevice[] = [];
+  let deviceRefreshFailed = false;
   try {
     const environmentId = remoteControlStatus?.environmentId ?? lastRemoteControlEnvironmentId;
     if (environmentId) {
+      try {
+        await refreshRemoteControlClients(environmentId);
+      } catch {
+        deviceRefreshFailed = true;
+      }
       for (const device of remoteControlClients) {
         try {
           await client.revokeRemoteControlClient(environmentId, device.clientId);
@@ -711,22 +792,27 @@ async function removeRemoteControl(): Promise<void> {
       .getConfiguration("codexUsage")
       .update("remoteControlEnabled", false, vscode.ConfigurationTarget.Global);
     settings = getSettings();
-    applyRemoteControlStatus(await client.disableRemoteControl());
+    applyRemoteControlStatus(await client.disableRemoteControl(/*ephemeral*/ false));
+    remoteControlPersistenceClearedForClient = true;
     remoteControlPairing = null;
     clearRemotePairingTimer();
     remoteControlClients = failedDevices;
-    remoteControlError = failedDevices.length > 0
-      ? `${failedDevices.length} paired device${failedDevices.length === 1 ? "" : "s"} could not be revoked. Retry removal or re-enable Remote Control and revoke them individually.`
-      : null;
+    remoteControlOwnershipBlocked = false;
+    remoteControlLease?.release();
+    remoteControlError = deviceRefreshFailed
+      ? "The current paired-device list could not be refreshed before removal. The relay is off, but an unlisted device grant may remain; reconnect and retry removal when Codex is available."
+      : failedDevices.length > 0
+        ? `${failedDevices.length} paired device${failedDevices.length === 1 ? "" : "s"} could not be revoked. Retry removal or re-enable Remote Control and revoke them individually.`
+        : null;
 
-    const revokedCount = remoteControlClients.length === 0
+    const revokedCount = !deviceRefreshFailed && remoteControlClients.length === 0
       ? "All listed paired devices were revoked."
       : "Some paired devices still need to be revoked.";
     output.appendLine(
       `Remote connection removed; ${failedDevices.length} device revocation${failedDevices.length === 1 ? "" : "s"} failed.`
     );
-    const message = `Codex Remote is disconnected. ${revokedCount} You can set it up again from the Remote button.`;
-    if (failedDevices.length > 0) {
+    const message = `Codex Remote is disconnected. ${revokedCount} The supported API does not delete OpenAI's saved Remote environment or the phone app's chat list.`;
+    if (failedDevices.length > 0 || deviceRefreshFailed) {
       vscode.window.showWarningMessage(message);
     } else {
       vscode.window.showInformationMessage(message);
@@ -801,8 +887,22 @@ async function refreshRemoteControlClients(environmentId: string): Promise<void>
     return;
   }
 
-  const response = await client.listRemoteControlClients(environmentId);
-  remoteControlClients = response.data;
+  const clients: RemoteControlClientDevice[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const response = await client.listRemoteControlClients(environmentId, cursor);
+    clients.push(...response.data);
+    cursor = response.nextCursor ?? undefined;
+    if (cursor && seenCursors.has(cursor)) {
+      throw new Error("Codex returned a repeated remote-control device cursor.");
+    }
+    if (cursor) {
+      seenCursors.add(cursor);
+    }
+  } while (cursor);
+
+  remoteControlClients = clients;
   lastRemoteControlEnvironmentId = environmentId;
 }
 
@@ -879,6 +979,7 @@ function applyRemoteControlStatus(status: RemoteControlStatusSnapshot): void {
 }
 
 function setRemoteControlError(error: unknown): void {
+  remoteControlOwnershipBlocked = false;
   const message = redactRemoteControlSecrets(
     error instanceof Error ? error.message : String(error),
     [

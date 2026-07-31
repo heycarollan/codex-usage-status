@@ -12,14 +12,14 @@ For Linux users who do not run VS Code, the GitHub documentation routes directly
 
 1. Select the persistent **Remote** status-bar button beside usage. First install highlights the button and offers a one-click setup message.
 2. Select **Enable and create pairing code**.
-3. The extension enables Codex Remote Control and waits for the outbound relay connection.
+3. The extension acquires the per-user Companion host lease, clears the old durable Codex preference from 1.1.0 when present, enables Remote for this app-server process only, and waits for the outbound relay connection.
 4. The extension requests a short-lived manual pairing code and displays it locally.
 5. Copy the code into **Remote** in the ChatGPT mobile app.
 6. The extension polls the opaque pairing artifact until Codex reports it claimed, then refreshes the paired-device list.
 7. Revoke individual devices or disable the host connection from the same settings page.
-8. Use **Remove Remote Connection** for a confirmed cleanup that revokes every currently listed paired device and disables the host while preserving the setup entry point.
+8. Use **Remove Remote Connection** for a confirmed cleanup that refreshes every page of controller devices, revokes the returned grants, and disables the local relay while preserving the setup entry point.
 
-The host computer must remain awake and online with VS Code and this extension running.
+The host computer must remain awake and online with VS Code and this extension running. Only one Companion extension host per OS user owns Remote at a time. A second VS Code window stays disconnected and retries lease acquisition during normal Remote refreshes.
 
 ## Architecture
 
@@ -49,11 +49,21 @@ The extension calls only these allowlisted experimental app-server methods:
 
 It listens only for `remoteControl/status/changed`. It does not accept remote requests itself or forward caller-selected app-server method names.
 
+The generated experimental schema exposes no Remote environment list, delete, unregister, session cleanup, or phone refresh method. `remoteControl/disable` stops this process's relay connection but intentionally retains Codex's saved enrollment and device grants. `remoteControl/client/revoke` removes a controller grant, not the saved environment or ChatGPT chat metadata.
+
+## Lifecycle ownership
+
+- Codex Companion keeps `codexUsage.remoteControlEnabled` as its durable opt-in and invokes `remoteControl/enable` with `ephemeral: true`. It invokes a durable disable once per app-server client to migrate and clear the 1.1.0 preference that otherwise makes every same-named app-server auto-connect.
+- A local per-user lease contains only an extension-host PID and random token. It prevents parallel VS Code windows and isolated test profiles from opening competing relay connections. A dead owner's lease is reclaimed.
+- Restart and deactivation request `remoteControl/disable` with `ephemeral: true`, close app-server stdin, wait for exit, then terminate the exact detached child process group only if necessary.
+- Child exit/error handlers are bound to the process that emitted them. A late exit from an old process cannot clear the reference, initialization promise, or pending requests for its replacement.
+- Codex persists and reuses the same enrollment for the Companion client name. Live comparison on Codex CLI 0.144.1 and the official VS Code extension's 0.146.0-alpha.9.2 bundle showed the same environment before and after ephemeral disable/re-enable and process restart; neither schema adds a cleanup API.
+
 ## Trust boundaries
 
 - **Local extension host:** trusted to start Codex, render setup state, and invoke the fixed remote-control API.
-- **Codex app-server:** owns ChatGPT authentication, relay enrollment, remote sessions, policy enforcement, and approval routing.
-- **OpenAI relay and ChatGPT client:** part of the official authenticated Remote Control system. The extension does not receive or store their account tokens.
+- **Codex app-server:** owns ChatGPT authentication, the saved relay enrollment, Remote transport, local thread execution, policy enforcement, and approval routing.
+- **OpenAI relay and ChatGPT client:** own authenticated Remote service state, synchronization, and the phone interface. The extension does not receive or store their account tokens and cannot refresh or delete the phone's active-chat list.
 - **Settings webview:** treated as untrusted input. Commands are matched against a fixed switch, client revocation IDs must already exist in the current device list, and all rendered values are escaped.
 - **Pairing artifacts:** bearer-like, short-lived setup values. They remain in process memory, are copied only on explicit request, expire automatically, and never enter logs or configuration.
 
@@ -63,7 +73,7 @@ It listens only for `remoteControl/status/changed`. It does not accept remote re
 - No inbound TCP listener, raw app-server exposure, shell endpoint, filesystem endpoint, or arbitrary VS Code command execution.
 - No prompt, command, diff, or approval payload is proxied or logged by this extension. Those controls remain inside the official ChatGPT Remote client and Codex approval system.
 - Device revocation requires a local modal confirmation and an ID from the current Codex-provided device list.
-- Full connection removal requires a local modal confirmation, revokes only IDs from that same allowlisted list, disables the relay, and reports any partial revocation failure honestly.
+- Full connection removal requires a local modal confirmation, refreshes all cursor pages, revokes only IDs from that same allowlisted list, disables the relay, and reports a failed refresh or partial revocation honestly.
 - Disabling the relay does not silently claim to revoke device grants; the UI states that grants persist until explicitly revoked.
 - Audit lines record enable, disable, code creation time, successful pairing, and revocation without recording codes, environment IDs, client IDs, prompts, or command contents.
 - Managed workspace policy can reject Remote Control; the extension reports the app-server error and does not bypass it.
@@ -71,7 +81,7 @@ It listens only for `remoteControl/status/changed`. It does not accept remote re
 ## Settings and UI
 
 - `codexUsage.remoteControlEnabled` defaults to `false`.
-- The unified settings editor shows relay state, the local server name, the short-lived manual code, paired devices, and explicit refresh/disable/revoke actions.
+- The unified settings editor shows relay state, the local server name, the short-lived manual code, paired devices, explicit refresh/disable/revoke actions, and accurate stale-phone-list recovery guidance.
 - The persistent **Remote** status-bar button reflects Off, Connecting, On, or Error and opens the unified settings editor scrolled directly to Remote Control.
 - **Codex Companion: Set Up Remote Control** remains available as an alternate entry point and uses the same focused settings section.
 - A one-time first-install message explains the new button. While the message is open, the button receives the warning highlight; dismissing it does not hide the permanent button.
@@ -87,10 +97,10 @@ It listens only for `remoteControl/status/changed`. It does not accept remote re
 
 ## Verification
 
-- Unit tests validate status, pairing, expiration, claim, and device-list response parsing.
+- Unit tests validate status, pairing, expiration, claim, device-list response parsing, single-owner lease behavior, stale-lease recovery, and race-free app-server restart/shutdown.
 - Webview tests verify HTML escaping, fixed command names, device revocation controls, and that the opaque pairing artifact is not rendered.
 - The normal test suite compiles all TypeScript and runs every unit test.
-- A bounded live probe against the configured Codex binary must verify enable, connected status, pairing creation, future expiration, pairing-status read, device-list read, and disable without printing identifiers or pairing values.
+- A bounded live probe against the configured Codex binary must verify enable, status, environment reuse, device-list count, restart, and disable without printing identifiers or pairing values.
 - The settings UI receives desktop-width visual inspection with fake data before review.
 - VSIX contents must be inspected to ensure no credentials or temporary live-probe artifacts are packaged.
 

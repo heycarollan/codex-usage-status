@@ -103,20 +103,20 @@ export class CodexAppServerClient {
     );
   }
 
-  async enableRemoteControl(): Promise<RemoteControlStatusSnapshot> {
+  async enableRemoteControl(ephemeral = false): Promise<RemoteControlStatusSnapshot> {
     await this.ensureInitialized();
     return this.rememberRemoteControlStatus(
       parseRemoteControlStatus(
-        await this.request("remoteControl/enable", { ephemeral: false })
+        await this.request("remoteControl/enable", { ephemeral })
       )
     );
   }
 
-  async disableRemoteControl(): Promise<RemoteControlStatusSnapshot> {
+  async disableRemoteControl(ephemeral = false): Promise<RemoteControlStatusSnapshot> {
     await this.ensureInitialized();
     return this.rememberRemoteControlStatus(
       parseRemoteControlStatus(
-        await this.request("remoteControl/disable", { ephemeral: false })
+        await this.request("remoteControl/disable", { ephemeral })
       )
     );
   }
@@ -141,11 +141,15 @@ export class CodexAppServerClient {
     );
   }
 
-  async listRemoteControlClients(environmentId: string): Promise<RemoteControlClientList> {
+  async listRemoteControlClients(
+    environmentId: string,
+    cursor?: string
+  ): Promise<RemoteControlClientList> {
     await this.ensureInitialized();
     const clients = parseRemoteControlClientList(
       await this.request("remoteControl/client/list", {
         environmentId,
+        ...(cursor ? { cursor } : {}),
         limit: 100,
         order: "desc"
       })
@@ -200,21 +204,40 @@ export class CodexAppServerClient {
   }
 
   async restart(): Promise<void> {
-    this.dispose();
+    await this.shutdown();
     await this.ensureInitialized();
   }
 
-  dispose(): void {
-    for (const [id, pending] of this.pending) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error(`Codex app-server request ${id} was cancelled.`));
+  async shutdown(): Promise<void> {
+    const activeProcess = this.proc;
+    const activeInitialization = this.initializePromise;
+    if (activeProcess && activeInitialization) {
+      try {
+        await activeInitialization;
+        if (this.proc === activeProcess) {
+          await this.disableRemoteControl(/*ephemeral*/ true);
+        }
+      } catch {
+        this.logger.appendLine(
+          "Remote control shutdown handshake was unavailable; closing the app-server process."
+        );
+      }
     }
-    this.pending.clear();
-    this.rl?.close();
-    this.rl = null;
-    this.proc?.kill();
-    this.proc = null;
-    this.initializePromise = null;
+
+    await this.stopCurrentProcess();
+  }
+
+  dispose(): void {
+    const processToStop = this.detachCurrentProcess();
+    if (!processToStop) {
+      return;
+    }
+
+    requestProcessExit(processToStop);
+    const forceKillTimer = setTimeout(() => {
+      terminateProcessTree(processToStop);
+    }, 250);
+    forceKillTimer.unref();
   }
 
   private ensureInitialized(): Promise<void> {
@@ -231,7 +254,7 @@ export class CodexAppServerClient {
       clientInfo: {
         name: "codex_usage_status_vscode",
         title: "Codex Companion",
-        version: "1.1.0"
+        version: "1.1.1"
       },
       capabilities: {
         experimentalApi: true
@@ -247,24 +270,43 @@ export class CodexAppServerClient {
     }
 
     this.logger.appendLine(`Starting ${this.codexExecutable} app-server`);
-    this.proc = spawn(this.codexExecutable, ["app-server"], {
+    const proc = spawn(this.codexExecutable, ["app-server"], {
+      detached: process.platform !== "win32",
       stdio: ["pipe", "pipe", "pipe"]
     });
+    const lineReader = readline.createInterface({ input: proc.stdout });
+    this.proc = proc;
+    this.rl = lineReader;
 
-    this.proc.on("error", (error) => {
+    proc.on("error", (error) => {
+      if (this.proc !== proc) {
+        return;
+      }
       this.rejectAll(new Error(`Failed to start Codex app-server: ${error.message}`));
+      this.proc = null;
+      if (this.rl === lineReader) {
+        this.rl.close();
+        this.rl = null;
+      }
       this.initializePromise = null;
     });
 
-    this.proc.on("exit", (code, signal) => {
+    proc.on("exit", (code, signal) => {
+      if (this.proc !== proc) {
+        return;
+      }
       const suffix = signal ? `signal ${signal}` : `code ${code ?? "unknown"}`;
       this.logger.appendLine(`Codex app-server exited with ${suffix}`);
       this.rejectAll(new Error(`Codex app-server exited with ${suffix}.`));
       this.proc = null;
+      if (this.rl === lineReader) {
+        this.rl.close();
+        this.rl = null;
+      }
       this.initializePromise = null;
     });
 
-    this.proc.stderr.on("data", (chunk: Buffer) => {
+    proc.stderr.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString().split(/\r?\n/)) {
         if (line.trim()) {
           this.logger.appendLine(`[codex] ${this.redactRemoteControlMessage(line)}`);
@@ -272,8 +314,37 @@ export class CodexAppServerClient {
       }
     });
 
-    this.rl = readline.createInterface({ input: this.proc.stdout });
-    this.rl.on("line", (line) => this.handleLine(line));
+    lineReader.on("line", (line) => {
+      if (this.proc === proc) {
+        this.handleLine(line);
+      }
+    });
+  }
+
+  private async stopCurrentProcess(): Promise<void> {
+    const processToStop = this.detachCurrentProcess();
+    if (!processToStop) {
+      return;
+    }
+
+    const exited = waitForProcessExit(processToStop);
+    requestProcessExit(processToStop);
+    if (await waitWithTimeout(exited, 1_000)) {
+      return;
+    }
+
+    terminateProcessTree(processToStop);
+    await waitWithTimeout(exited, 1_000);
+  }
+
+  private detachCurrentProcess(): ChildProcessWithoutNullStreams | null {
+    const processToStop = this.proc;
+    this.proc = null;
+    this.initializePromise = null;
+    this.rl?.close();
+    this.rl = null;
+    this.rejectAll(new Error("Codex app-server process was stopped."));
+    return processToStop;
   }
 
   private request<T>(method: string, params: unknown): Promise<T> {
@@ -438,6 +509,69 @@ export class CodexAppServerClient {
       [...this.remoteControlSensitiveValues]
     );
   }
+}
+
+function requestProcessExit(proc: ChildProcessWithoutNullStreams): void {
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    return;
+  }
+
+  try {
+    proc.stdin.end();
+  } catch {
+    terminateProcessTree(proc);
+  }
+}
+
+function terminateProcessTree(proc: ChildProcessWithoutNullStreams): void {
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    return;
+  }
+
+  try {
+    if (process.platform !== "win32" && proc.pid) {
+      process.kill(-proc.pid, "SIGTERM");
+    } else {
+      proc.kill("SIGTERM");
+    }
+  } catch {
+    try {
+      proc.kill("SIGTERM");
+    } catch {
+      // The process already exited.
+    }
+  }
+}
+
+function waitForProcessExit(proc: ChildProcessWithoutNullStreams): Promise<void> {
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const done = () => {
+      proc.off("exit", done);
+      proc.off("error", done);
+      resolve();
+    };
+    proc.once("exit", done);
+    proc.once("error", done);
+  });
+}
+
+async function waitWithTimeout(promise: Promise<void>, milliseconds: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | null = null;
+  const completed = await Promise.race([
+    promise.then(() => true),
+    new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), milliseconds);
+      timer.unref();
+    })
+  ]);
+  if (timer) {
+    clearTimeout(timer);
+  }
+  return completed;
 }
 
 function isNeedsInputMethod(method: string): boolean {

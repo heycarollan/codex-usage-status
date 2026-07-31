@@ -2,7 +2,7 @@
   "name": "codex-usage-status",
   "displayName": "Codex Companion: Remote Control, Usage Status & Resets",
   "description": "Control Codex remotely from ChatGPT, monitor usage status, get completion alerts, reopen chats, and manage reset credits in VS Code.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -200,7 +200,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.1.0.vsix",
+    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.1.1.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

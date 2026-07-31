@@ -256,7 +256,10 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   assert.match(html, /data-command="remoteRevoke"/);
   assert.match(html, /data-command="remoteRemove">/);
   assert.match(html, /Remove Remote Connection/);
-  assert.match(html, /set it up again whenever you want/);
+  assert.match(html, /Phone chat list looks stale\?/);
+  assert.match(html, /data-command="restart"/);
+  assert.match(html, /cannot list or delete saved Remote environments/);
+  assert.match(html, /does not delete OpenAI's saved Remote environment/);
   assert.doesNotMatch(html, /private-pairing-artifact/);
   assert.doesNotMatch(html, /<script>bad\(\)<\/script>/);
 });
