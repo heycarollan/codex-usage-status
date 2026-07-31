@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- Add an opt-in shared live-stream mode on Linux and macOS that starts the supported Codex app-server on a private Unix socket and connects Codex Companion over WebSocket.
+- Add **Open Shared Codex Terminal**, which runs the official `codex --remote unix://...` client against Companion's app-server so terminal chats and ChatGPT Remote receive one process-local event stream.
+- Keep the default stdio host unchanged and state explicitly that the official VS Code Codex panel still uses a separate app-server and cannot be bridged through a supported API.
+- Secure each shared endpoint inside a random per-process directory with owner-only permissions, disable unsupported WebSocket compression, terminate the exact child process group, and remove the socket directory during shutdown.
+- Add regression coverage for shared WebSocket initialization, restart, ephemeral Remote disable, single-process lifecycle, and endpoint cleanup.
+
 ## 1.1.1
 
 - Keep Remote Control runtime-only inside Codex Companion and coordinate a single relay-owning VS Code extension host, preventing older or parallel Companion app-server processes from reconnecting through a persisted Codex preference.

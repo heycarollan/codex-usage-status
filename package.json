@@ -2,7 +2,7 @@
   "name": "codex-usage-status",
   "displayName": "Codex Companion: Remote Control, Usage Status & Resets",
   "description": "Control Codex remotely from ChatGPT, monitor usage status, get completion alerts, reopen chats, and manage reset credits in VS Code.",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -59,7 +59,8 @@
     "onCommand:codexUsage.resetUsage",
     "onCommand:codexUsage.openSettings",
     "onCommand:codexUsage.openLogs",
-    "onCommand:codexUsage.openRemoteControl"
+    "onCommand:codexUsage.openRemoteControl",
+    "onCommand:codexUsage.openSharedCodexTerminal"
   ],
   "main": "./dist/src/extension.js",
   "contributes": {
@@ -87,6 +88,10 @@
       {
         "command": "codexUsage.openRemoteControl",
         "title": "Codex Companion: Set Up Remote Control"
+      },
+      {
+        "command": "codexUsage.openSharedCodexTerminal",
+        "title": "Codex Companion: Open Shared Codex Terminal"
       }
     ],
     "configuration": {
@@ -192,6 +197,11 @@
           "type": "boolean",
           "default": false,
           "description": "Opt in to Codex remote control through OpenAI's internet relay while VS Code is running. Pair and revoke ChatGPT devices from Codex Companion."
+        },
+        "codexUsage.sharedRemoteHostEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Experimental on Linux and macOS: run Codex Companion on a private Unix socket so ChatGPT Remote and the Shared Codex Terminal use one live app-server stream. The official VS Code Codex panel remains separate."
         }
       }
     }
@@ -200,13 +210,17 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.1.1.vsix",
+    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.2.0.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/vscode": "^1.90.0",
+    "@types/ws": "^8.18.1",
     "@vscode/vsce": "^3.2.1",
     "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
   }
 }

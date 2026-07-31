@@ -16,11 +16,13 @@ const settings: ExtensionSettings = {
   notifyNeedsInput: true,
   notificationMode: "vscode",
   completionChatAction: "exact",
-  remoteControlEnabled: false
+  remoteControlEnabled: false,
+  sharedRemoteHostEnabled: false
 };
 
 const remoteControl = {
   supported: true,
+  sharedHostSupported: true,
   busy: false,
   status: {
     status: "disabled" as const,
@@ -120,6 +122,9 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.match(html, /data-command="reset"/);
   assert.doesNotMatch(html, /data-command="reset" disabled/);
   assert.match(html, /data-command="remoteRemove" disabled/);
+  assert.match(html, /data-command="remoteOpenSharedTerminal" disabled/);
+  assert.match(html, /Use one app-server for Remote and a Codex terminal/);
+  assert.match(html, /official VS Code Codex panel.*separate/);
 
   for (const key of [
     "refreshIntervalSeconds",
@@ -133,7 +138,8 @@ test("renders usage, reset details, actions, and every configurable setting", ()
     "notifyNeedsInput",
     "notificationMode",
     "completionChatAction",
-    "remoteControlEnabled"
+    "remoteControlEnabled",
+    "sharedRemoteHostEnabled"
   ]) {
     assert.match(html, new RegExp(`data-setting="${key}"`));
   }
@@ -195,6 +201,10 @@ test("validates settings messages before updating VS Code configuration", () => 
     { key: "remoteControlEnabled", value: true }
   );
   assert.deepEqual(
+    normalizeSettingUpdate("sharedRemoteHostEnabled", true),
+    { key: "sharedRemoteHostEnabled", value: true }
+  );
+  assert.deepEqual(
     normalizeSettingUpdate("codexExecutable", "  /usr/bin/codex  "),
     { key: "codexExecutable", value: "/usr/bin/codex" }
   );
@@ -210,12 +220,17 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   const html = renderSettingsView({
     cspSource: "vscode-webview://test",
     nonce: "nonce-value",
-    settings: { ...settings, remoteControlEnabled: true },
+    settings: {
+      ...settings,
+      remoteControlEnabled: true,
+      sharedRemoteHostEnabled: true
+    },
     snapshot,
     errorMessage: null,
     focusRemoteControl: true,
     remoteControl: {
       supported: true,
+      sharedHostSupported: true,
       busy: false,
       status: {
         status: "connected",
@@ -255,6 +270,8 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   assert.match(html, /Carol&#39;s phone/);
   assert.match(html, /data-command="remoteRevoke"/);
   assert.match(html, /data-command="remoteRemove">/);
+  assert.match(html, /data-command="remoteOpenSharedTerminal">/);
+  assert.match(html, /Shared Codex Terminal/);
   assert.match(html, /Remove Remote Connection/);
   assert.match(html, /Phone chat list or activity looks stale\?/);
   assert.match(html, /data-command="restart"/);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   CodexAppServerClient,
@@ -74,6 +74,97 @@ input.on("line", (line) => {
     assert.equal(lifecycle.filter((line) => line === "stop").length, 2);
     assert.equal(lifecycle.filter((line) => line === "disable:true").length, 2);
     assert.equal(messages.some((message) => /request .* cancelled|restart failed/i.test(message)), false);
+  } finally {
+    await client.shutdown();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("shares one Unix-socket app-server across clients and cleans it up", {
+  skip: process.platform === "win32"
+}, async () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-companion-shared-client-test-"));
+  const executable = join(root, "fake-codex");
+  const lifecycleLog = join(root, "shared-lifecycle.log");
+  const wsModule = require.resolve("ws");
+  const script = `#!/usr/bin/env node
+const fs = require("node:fs");
+const http = require("node:http");
+const { WebSocketServer } = require(${JSON.stringify(wsModule)});
+const logPath = ${JSON.stringify(lifecycleLog)};
+const listenIndex = process.argv.indexOf("--listen");
+const listenUrl = process.argv[listenIndex + 1];
+if (!listenUrl?.startsWith("unix://")) process.exit(2);
+const socketPath = listenUrl.slice("unix://".length);
+const server = http.createServer();
+const websocketServer = new WebSocketServer({ noServer: true });
+server.on("upgrade", (request, socket, head) => {
+  websocketServer.handleUpgrade(request, socket, head, (websocket) => {
+    websocketServer.emit("connection", websocket, request);
+  });
+});
+websocketServer.on("connection", (websocket) => {
+  websocket.on("message", (data) => {
+    const message = JSON.parse(data.toString());
+    if (typeof message.id !== "number") return;
+    if (message.method === "initialize") {
+      websocket.send(JSON.stringify({ id: message.id, result: {} }));
+      return;
+    }
+    if (message.method === "remoteControl/status/read") {
+      websocket.send(JSON.stringify({ id: message.id, result: {
+        status: "disabled", serverName: "test-host", installationId: null, environmentId: null
+      } }));
+      return;
+    }
+    if (message.method === "remoteControl/disable") {
+      fs.appendFileSync(logPath, "disable:" + String(message.params?.ephemeral) + "\\n");
+      websocket.send(JSON.stringify({ id: message.id, result: {
+        status: "disabled", serverName: "test-host", installationId: null, environmentId: null
+      } }));
+      return;
+    }
+    websocket.send(JSON.stringify({ id: message.id, error: { code: -32601, message: "unsupported" } }));
+  });
+});
+let stopped = false;
+function stop() {
+  if (stopped) return;
+  stopped = true;
+  fs.appendFileSync(logPath, "stop\\n");
+  for (const websocket of websocketServer.clients) websocket.terminate();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 250).unref();
+}
+process.on("SIGTERM", stop);
+server.listen(socketPath, () => fs.appendFileSync(logPath, "start\\n"));
+`;
+  writeFileSync(executable, script, "utf8");
+  chmodSync(executable, 0o755);
+
+  const client = new CodexAppServerClient(
+    executable,
+    2_000,
+    { appendLine() {} },
+    {},
+    { sharedHost: true, sharedRuntimeRoot: root }
+  );
+
+  try {
+    assert.equal(client.isSharedHost(), true);
+    const endpoint = await client.getSharedHostEndpoint();
+    assert.ok(endpoint?.startsWith("unix://"));
+    const sharedDirectory = dirname(endpoint!.slice("unix://".length));
+    assert.equal((await client.getRemoteControlStatus()).status, "disabled");
+    await client.restart();
+    assert.equal((await client.getRemoteControlStatus()).status, "disabled");
+    await client.shutdown();
+
+    const lifecycle = readFileSync(lifecycleLog, "utf8").trim().split("\n");
+    assert.equal(lifecycle.filter((line) => line === "start").length, 2);
+    assert.equal(lifecycle.filter((line) => line === "stop").length, 2);
+    assert.equal(lifecycle.filter((line) => line === "disable:true").length, 2);
+    assert.equal(existsSync(sharedDirectory), false);
   } finally {
     await client.shutdown();
     rmSync(root, { recursive: true, force: true });

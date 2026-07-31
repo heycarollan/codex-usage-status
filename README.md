@@ -63,6 +63,7 @@ The extension talks to the local Codex app-server and reads:
 - A configurable completion action that opens the exact completed local chat, opens the general Codex sidebar, or stays hidden. Exact-chat switching uses the OpenAI extension's current thread resource and is marked experimental until OpenAI documents a public API.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Opt-in ChatGPT Remote setup using Codex's official secure internet relay. Create and copy a short-lived manual pairing code, see connection state, and revoke paired controller devices from the settings editor.
+- Experimental shared live-stream mode on Linux and macOS. Open the official Codex terminal against Companion's private app-server socket so computer-terminal chats and ChatGPT Remote use one live event source.
 - Configurable refresh interval, warning threshold, and executable source or path.
 - The status-bar usage display and its tooltip action open the unified settings editor.
 
@@ -80,20 +81,27 @@ The settings editor includes a **Use reset credit** button with the available co
 - `Codex Companion: Open Settings`
 - `Codex Companion: Open Logs`
 - `Codex Companion: Set Up Remote Control`
+- `Codex Companion: Open Shared Codex Terminal`
 
 ## Remote control
 
 Remote control is disabled by default. After installation, Codex Companion shows one-time setup guidance and highlights the new **Remote** button beside the usage display. Select that button at any time to open the existing settings page directly at its Remote Control section. Turn on **Enable remote access**, select **Create pairing code**, and copy the short-lived code into **Remote** in the ChatGPT mobile app. Once paired, ChatGPT connects to Codex Companion's app-server over OpenAI's internet relay. Chats handled by that Remote host support prompts, steering, questions, outputs, diffs, and action approvals.
 
-The extension does not create a public listener, expose the raw app-server, or operate a separate relay. It calls Codex's experimental `remoteControl/*` app-server methods and shows only the local setup and device-management controls. Pairing codes stay in memory until claimed or expired and are never written to extension logs. Paired devices can be revoked individually. Only one Codex Companion extension host owns Remote at a time; other VS Code windows remain disconnected and take over after the owner exits.
+The extension does not create a public listener or operate a separate relay. Its default mode uses app-server stdio. Optional shared-host mode creates only an owner-readable local Unix socket in a random owner-only directory; it never opens a TCP port. Pairing codes stay in memory until claimed or expired and are never written to extension logs. Paired devices can be revoked individually. Only one Codex Companion extension host owns Remote at a time; other VS Code windows remain disconnected and take over after the owner exits.
 
 If you no longer want the connection, use **Remove Remote Connection** at the bottom of the Remote Control section. After a modal confirmation, Codex Companion refreshes the complete supported device list, revokes those controllers, and disables the relay. The status-bar button remains available so you can set up Remote again later.
+
+### Shared live stream from the computer
+
+Codex app-server live activity is process-local. On Linux or macOS, enable **Use one app-server for Remote and a Codex terminal**, then select **Open Shared Codex Terminal**. Companion starts one app-server on a private Unix socket and opens the official Codex CLI with `codex --remote` against that same socket. Chats started or continued in this terminal and viewed through the paired Remote host therefore use the same live thread runtime and event stream.
+
+This mode is opt-in and does not change the official VS Code Codex panel. That panel owns a separate private app-server, so its already-running chats still cannot be attached or mirrored safely. Changing shared-host mode or restarting Companion closes the current shared terminal connection; open a new Shared Codex Terminal afterward. The transport follows Codex's documented [app-server terminal connection](https://learn.chatgpt.com/docs/app-server#connect-the-cli-terminal-ui) and [`codex app-server --listen`](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-app-server) interfaces.
 
 ### Stale chats or activity in the phone app
 
 Codex Companion does not render or store the ChatGPT phone interface. The supported app-server API exposes relay status, one current environment identifier, pairing, and controller-device list/revoke operations. It does not expose an environment list/delete/unregister method or an operation that refreshes or deletes ChatGPT mobile's active-chat list.
 
-Live thread status is also process-local in Codex app-server. A chat started or continued through Companion's Remote host can stream its activity to the phone. A chat already running in a different Codex, ChatGPT, or IDE app-server on the same computer may be discoverable from saved history while its output and Thinking or Working state lag until the phone closes and reopens the chat. There is no supported cross-process attach or status-subscription API, so Codex Companion cannot safely bridge those live events.
+Live thread status is also process-local in Codex app-server. A chat started or continued through Companion's Remote host—or through the Shared Codex Terminal connected to that host—can stream its activity to the phone. A chat already running in a different Codex, ChatGPT, or IDE app-server on the same computer may be discoverable from saved history while its output and Thinking or Working state lag until the phone closes and reopens the chat. There is no supported cross-process attach or status-subscription API, so Codex Companion cannot safely bridge those live events.
 
 Restart, reload, disable/re-enable, and re-pair steps can recover the relay connection, but they cannot make separate app-server processes share live activity. If an open phone chat is current while its list row still lacks an activity icon, that row is rendered and synchronized by the ChatGPT mobile app. If an old entry remains after the current host is disconnected and re-paired, that entry is OpenAI Remote/ChatGPT synchronization state; the extension has no supported API to remove it.
 
@@ -127,6 +135,7 @@ Click the Codex status-bar usage display to open **Codex Companion**. It combine
 | `codexUsage.notificationMode` | `vscode` | Use VS Code notifications, native Linux notifications, or both. |
 | `codexUsage.completionChatAction` | `exact` | Open the exact completed chat (experimental), open the Codex sidebar, or show no chat action. |
 | `codexUsage.remoteControlEnabled` | `false` | Opt in to one Companion window reconnecting through OpenAI's remote-control relay while VS Code runs. |
+| `codexUsage.sharedRemoteHostEnabled` | `false` | On Linux or macOS, use one private Unix-socket app-server for Companion, ChatGPT Remote, and the Shared Codex Terminal. The official VS Code Codex panel remains separate. |
 
 ## Notifications
 
@@ -144,7 +153,7 @@ Click the usage display or **Open Settings** in the tooltip to open the unified 
 
 ## Privacy
 
-This extension runs locally. It starts `codex app-server` and reads the same account usage data available to local Codex clients. It does not send usage data to a third-party service. When remote control is explicitly enabled, one Companion app-server connects to OpenAI's remote-control relay for the lifetime of its VS Code extension host, and the paired ChatGPT client controls the local Codex session under the account's existing authentication, approval, and workspace policies.
+This extension runs locally. It starts `codex app-server` and reads the same account usage data available to local Codex clients. It does not send usage data to a third-party service. Shared-host mode exposes only a temporary owner-readable Unix socket to local processes; the extension passes its path directly to the official Codex CLI and removes it at shutdown. When remote control is explicitly enabled, one Companion app-server connects to OpenAI's remote-control relay for the lifetime of its VS Code extension host, and the paired ChatGPT client controls the local Codex session under the account's existing authentication, approval, and workspace policies.
 
 Built by [Synapticraft](https://synapticraft-studio.com/services/apps-plugin-creation.html), a studio for practical apps, plugins, websites, and automation.
 

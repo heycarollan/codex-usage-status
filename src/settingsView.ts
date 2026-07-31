@@ -23,6 +23,7 @@ import type {
 
 export interface RemoteControlViewState {
   supported: boolean;
+  sharedHostSupported: boolean;
   busy: boolean;
   status: RemoteControlStatusSnapshot | null;
   pairing: RemoteControlPairingArtifact | null;
@@ -62,6 +63,7 @@ export function normalizeSettingUpdate(key: unknown, value: unknown): Normalized
     case "notifyTurnComplete":
     case "notifyNeedsInput":
     case "remoteControlEnabled":
+    case "sharedRemoteHostEnabled":
       return typeof value === "boolean" ? { key, value } : null;
     case "statusFormat":
       return value === "compact" || value === "remaining" ? { key, value } : null;
@@ -270,7 +272,11 @@ export function renderSettingsView(state: SettingsViewState): string {
 
     <section id="remote-control" tabindex="-1" aria-labelledby="remote-control-heading">
       <h2 id="remote-control-heading">Remote control</h2>
-      ${renderRemoteControl(remoteControl, settings.remoteControlEnabled)}
+      ${renderRemoteControl(
+        remoteControl,
+        settings.remoteControlEnabled,
+        settings.sharedRemoteHostEnabled
+      )}
     </section>
 
     <section aria-labelledby="usage-settings-heading">
@@ -558,7 +564,11 @@ function renderAccount(snapshot: NormalizedUsageSnapshot | null): string {
     </div>`;
 }
 
-function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: boolean): string {
+function renderRemoteControl(
+  state: RemoteControlViewState,
+  configuredEnabled: boolean,
+  sharedHostEnabled: boolean
+): string {
   const disabled = state.busy ? " disabled" : "";
   const status = state.status?.status ?? (state.supported ? "disabled" : "unavailable");
   const statusLabel = status === "connected"
@@ -617,16 +627,31 @@ function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: b
       <div class="card">
         <h3>How it works</h3>
         <p>Pair once, then use the ChatGPT mobile app from any internet connection to start or continue chats, send instructions, review outputs, and approve or reject actions.</p>
-        <p class="description">The computer must remain awake, online, and running VS Code. Pairing is opt-in. No local port or raw app-server endpoint is exposed. Codex Companion owns only the local relay lifecycle and paired-device grants; OpenAI's Remote service and ChatGPT app own the phone interface and its synchronized chat list.</p>
+        <p class="description">The computer must remain awake, online, and running VS Code. Pairing is opt-in. No public TCP listener is opened; optional shared-host mode uses only a temporary owner-readable local Unix socket. Codex Companion owns only the local relay lifecycle and paired-device grants; OpenAI's Remote service and ChatGPT app own the phone interface and its synchronized chat list.</p>
       </div>
     </div>
+    <article class="card credit">
+      <h3>Shared live stream (experimental)</h3>
+      ${renderCheckboxSetting(
+        "sharedRemoteHostEnabled",
+        "Use one app-server for Remote and a Codex terminal",
+        sharedHostEnabled,
+        "Starts Companion on a private local Unix socket. Chats opened in the Shared Codex Terminal and on the paired phone then use the same live app-server stream."
+      )}
+      <p class="description">This does not connect the official VS Code Codex panel, which still owns a separate app-server process. After enabling this option, start or continue the chats you want to follow remotely in the Shared Codex Terminal. Changing the option restarts Companion's app-server and closes any existing shared terminal session.</p>
+      ${state.sharedHostSupported
+        ? `<div class="actions">
+            <button type="button" data-command="remoteOpenSharedTerminal"${sharedHostEnabled && !state.busy ? "" : " disabled"}>Open Shared Codex Terminal</button>
+          </div>`
+        : `<p class="description">The shared host currently requires Linux or macOS.</p>`}
+    </article>
     ${pairing}
     <h3>Paired devices</h3>
     ${devices}
     <article class="card credit">
       <h3>Phone chat list or activity looks stale?</h3>
-      <p>Chats started or continued through this Remote host can stream live activity. A chat already running in another Codex or ChatGPT app-server on the computer is visible here only through saved history, so its phone output and Thinking or Working indicator can lag until you close and reopen the chat.</p>
-      <p class="description">Codex reports live thread status only inside the app-server process running that turn. Its supported API cannot subscribe to another process's turn events, force-refresh ChatGPT's list, or list and delete saved Remote environments. Restart and re-pair steps can recover the relay, but they cannot make separate app-server processes share live activity. If the open chat streams correctly while its list row has no activity icon, that list rendering is controlled by the ChatGPT mobile app.</p>
+      <p>Chats started or continued through this Remote host can stream live activity. In shared-host mode, use the Shared Codex Terminal so the computer and phone consume the same app-server stream. A chat running in the separate official VS Code Codex panel is visible here only through saved history, so its phone output and Thinking or Working indicator can lag until you close and reopen the chat.</p>
+      <p class="description">Codex reports live thread status only inside the app-server process running that turn. Its supported API cannot subscribe to another process's turn events, force-refresh ChatGPT's list, or list and delete saved Remote environments. If the open chat streams correctly while its list row has no activity icon, that list rendering is controlled by the ChatGPT mobile app.</p>
       <div class="actions">
         <button type="button" class="secondary" data-command="restart"${disabled}>Restart App Server</button>
       </div>

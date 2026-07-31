@@ -141,4 +141,5 @@ export interface ExtensionSettings {
   notificationMode: "native" | "vscode" | "both";
   completionChatAction: "exact" | "sidebar" | "none";
   remoteControlEnabled: boolean;
+  sharedRemoteHostEnabled: boolean;
 }

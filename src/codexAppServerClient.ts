@@ -1,5 +1,6 @@
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import * as readline from "node:readline";
+import WebSocket from "ws";
 import type {
   ConsumeAccountRateLimitResetCreditResponse,
   GetAccountRateLimitsResponse,
@@ -17,6 +18,10 @@ import {
   type RemoteControlPairingArtifact,
   type RemoteControlStatusSnapshot
 } from "./remoteControl";
+import {
+  createSharedAppServerEndpoint,
+  type SharedAppServerEndpoint
+} from "./sharedAppServer";
 
 export interface Logger {
   appendLine(message: string): void;
@@ -33,6 +38,11 @@ export interface AppServerEventHandlers {
   onTurnCompleted?(event: CodexTurnCompletedEvent): void;
   onNeedsUserInput?(event: CodexNeedsUserInputEvent): void;
   onRemoteControlStatusChanged?(status: RemoteControlStatusSnapshot): void;
+}
+
+export interface CodexAppServerClientOptions {
+  sharedHost?: boolean;
+  sharedRuntimeRoot?: string;
 }
 
 export interface CodexTurnCompletedEvent {
@@ -74,17 +84,36 @@ export interface CodexNeedsUserInputEvent {
 export class CodexAppServerClient {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private rl: readline.Interface | null = null;
+  private websocket: WebSocket | null = null;
   private nextId = 1;
   private readonly pending = new Map<JsonRpcId, PendingRequest<unknown>>();
   private initializePromise: Promise<void> | null = null;
   private readonly remoteControlSensitiveValues = new Set<string>();
+  private readonly sharedEndpoint: SharedAppServerEndpoint | null;
 
   constructor(
     private readonly codexExecutable: string,
     private readonly requestTimeoutMs: number,
     private readonly logger: Logger,
-    private readonly eventHandlers: AppServerEventHandlers = {}
-  ) {}
+    private readonly eventHandlers: AppServerEventHandlers = {},
+    options: CodexAppServerClientOptions = {}
+  ) {
+    this.sharedEndpoint = options.sharedHost
+      ? createSharedAppServerEndpoint(options.sharedRuntimeRoot)
+      : null;
+  }
+
+  isSharedHost(): boolean {
+    return this.sharedEndpoint !== null;
+  }
+
+  async getSharedHostEndpoint(): Promise<string | null> {
+    if (!this.sharedEndpoint) {
+      return null;
+    }
+    await this.ensureInitialized();
+    return this.sharedEndpoint.listenUrl;
+  }
 
   async getRateLimits(): Promise<GetAccountRateLimitsResponse> {
     await this.ensureInitialized();
@@ -204,11 +233,15 @@ export class CodexAppServerClient {
   }
 
   async restart(): Promise<void> {
-    await this.shutdown();
+    await this.shutdownCurrentProcess(/*cleanupSharedEndpoint*/ false);
     await this.ensureInitialized();
   }
 
   async shutdown(): Promise<void> {
+    await this.shutdownCurrentProcess(/*cleanupSharedEndpoint*/ true);
+  }
+
+  private async shutdownCurrentProcess(cleanupSharedEndpoint: boolean): Promise<void> {
     const activeProcess = this.proc;
     const activeInitialization = this.initializePromise;
     if (activeProcess && activeInitialization) {
@@ -224,16 +257,20 @@ export class CodexAppServerClient {
       }
     }
 
-    await this.stopCurrentProcess();
+    await this.stopCurrentProcess(cleanupSharedEndpoint);
   }
 
   dispose(): void {
     const processToStop = this.detachCurrentProcess();
     if (!processToStop) {
+      this.sharedEndpoint?.cleanup();
       return;
     }
 
-    requestProcessExit(processToStop);
+    void waitForProcessExit(processToStop).then(() => {
+      this.sharedEndpoint?.cleanup();
+    });
+    requestProcessExit(processToStop, this.sharedEndpoint !== null);
     const forceKillTimer = setTimeout(() => {
       terminateProcessTree(processToStop);
     }, 250);
@@ -248,13 +285,13 @@ export class CodexAppServerClient {
   }
 
   private async initialize(): Promise<void> {
-    this.startProcess();
+    await this.startProcess();
 
     await this.request("initialize", {
       clientInfo: {
         name: "codex_usage_status_vscode",
         title: "Codex Companion",
-        version: "1.1.1"
+        version: "1.2.0"
       },
       capabilities: {
         experimentalApi: true
@@ -264,13 +301,19 @@ export class CodexAppServerClient {
     this.notify("initialized", {});
   }
 
-  private startProcess(): void {
+  private async startProcess(): Promise<void> {
     if (this.proc) {
       return;
     }
 
-    this.logger.appendLine(`Starting ${this.codexExecutable} app-server`);
-    const proc = spawn(this.codexExecutable, ["app-server"], {
+    const sharedHost = this.sharedEndpoint !== null;
+    this.logger.appendLine(
+      `Starting ${this.codexExecutable} app-server${sharedHost ? " with a private shared socket" : ""}`
+    );
+    const args = sharedHost
+      ? ["app-server", "--listen", this.sharedEndpoint!.listenUrl]
+      : ["app-server"];
+    const proc = spawn(this.codexExecutable, args, {
       detached: process.platform !== "win32",
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -283,9 +326,10 @@ export class CodexAppServerClient {
         return;
       }
       this.rejectAll(new Error(`Failed to start Codex app-server: ${error.message}`));
+      this.closeWebSocket();
       this.proc = null;
       if (this.rl === lineReader) {
-        this.rl.close();
+        lineReader.close();
         this.rl = null;
       }
       this.initializePromise = null;
@@ -298,9 +342,10 @@ export class CodexAppServerClient {
       const suffix = signal ? `signal ${signal}` : `code ${code ?? "unknown"}`;
       this.logger.appendLine(`Codex app-server exited with ${suffix}`);
       this.rejectAll(new Error(`Codex app-server exited with ${suffix}.`));
+      this.closeWebSocket();
       this.proc = null;
       if (this.rl === lineReader) {
-        this.rl.close();
+        lineReader.close();
         this.rl = null;
       }
       this.initializePromise = null;
@@ -315,32 +360,128 @@ export class CodexAppServerClient {
     });
 
     lineReader.on("line", (line) => {
-      if (this.proc === proc) {
+      if (!sharedHost && this.proc === proc) {
         this.handleLine(line);
       }
     });
+
+    if (sharedHost) {
+      try {
+        await this.connectSharedWebSocket(proc);
+      } catch (error) {
+        if (this.proc === proc) {
+          this.proc = null;
+          this.initializePromise = null;
+          this.rejectAll(error instanceof Error ? error : new Error(String(error)));
+        }
+        terminateProcessTree(proc);
+        throw error;
+      }
+    }
   }
 
-  private async stopCurrentProcess(): Promise<void> {
+  private async connectSharedWebSocket(
+    proc: ChildProcessWithoutNullStreams
+  ): Promise<void> {
+    if (!this.sharedEndpoint) {
+      return;
+    }
+
+    const deadline = Date.now() + this.requestTimeoutMs;
+    let lastError: Error | null = null;
+    while (Date.now() < deadline) {
+      if (proc.exitCode !== null || proc.signalCode !== null || this.proc !== proc) {
+        throw new Error("Codex app-server exited before its shared socket was ready.");
+      }
+
+      try {
+        const websocket = await openWebSocket(
+          this.sharedEndpoint.websocketUrl,
+          Math.min(500, Math.max(100, deadline - Date.now()))
+        );
+        if (this.proc !== proc) {
+          websocket.terminate();
+          throw new Error("Codex app-server was replaced while its shared socket opened.");
+        }
+
+        this.websocket = websocket;
+        websocket.on("message", (data, isBinary) => {
+          if (this.websocket === websocket && !isBinary) {
+            this.handleLine(data.toString());
+          }
+        });
+        websocket.on("error", (error) => {
+          if (this.websocket === websocket) {
+            this.logger.appendLine(
+              `Codex shared socket error: ${this.redactRemoteControlMessage(error.message)}`
+            );
+          }
+        });
+        websocket.on("close", () => {
+          if (this.websocket !== websocket) {
+            return;
+          }
+          this.websocket = null;
+          this.rejectAll(new Error("Codex shared app-server connection closed."));
+          this.initializePromise = null;
+          if (this.proc === proc) {
+            this.proc = null;
+            terminateProcessTree(proc);
+          }
+        });
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        await wait(50);
+      }
+    }
+
+    throw new Error(
+      `Timed out opening the Codex shared app-server socket${lastError ? `: ${lastError.message}` : "."}`
+    );
+  }
+
+  private closeWebSocket(): void {
+    const websocket = this.websocket;
+    this.websocket = null;
+    if (!websocket) {
+      return;
+    }
+
+    websocket.removeAllListeners();
+    try {
+      websocket.terminate();
+    } catch {
+      // The socket is already closed.
+    }
+  }
+
+  private async stopCurrentProcess(cleanupSharedEndpoint: boolean): Promise<void> {
     const processToStop = this.detachCurrentProcess();
     if (!processToStop) {
+      if (cleanupSharedEndpoint) {
+        this.sharedEndpoint?.cleanup();
+      }
       return;
     }
 
     const exited = waitForProcessExit(processToStop);
-    requestProcessExit(processToStop);
-    if (await waitWithTimeout(exited, 1_000)) {
-      return;
+    requestProcessExit(processToStop, this.sharedEndpoint !== null);
+    if (!await waitWithTimeout(exited, 1_000)) {
+      terminateProcessTree(processToStop);
+      await waitWithTimeout(exited, 1_000);
     }
 
-    terminateProcessTree(processToStop);
-    await waitWithTimeout(exited, 1_000);
+    if (cleanupSharedEndpoint) {
+      this.sharedEndpoint?.cleanup();
+    }
   }
 
   private detachCurrentProcess(): ChildProcessWithoutNullStreams | null {
     const processToStop = this.proc;
     this.proc = null;
     this.initializePromise = null;
+    this.closeWebSocket();
     this.rl?.close();
     this.rl = null;
     this.rejectAll(new Error("Codex app-server process was stopped."));
@@ -348,7 +489,7 @@ export class CodexAppServerClient {
   }
 
   private request<T>(method: string, params: unknown): Promise<T> {
-    if (!this.proc) {
+    if (!this.proc || (this.sharedEndpoint && this.websocket?.readyState !== WebSocket.OPEN)) {
       return Promise.reject(new Error("Codex app-server is not running."));
     }
 
@@ -367,7 +508,7 @@ export class CodexAppServerClient {
         timer
       });
 
-      this.proc?.stdin.write(`${payload}\n`, (error) => {
+      this.writePayload(payload, (error) => {
         if (error) {
           clearTimeout(timer);
           this.pending.delete(id);
@@ -381,7 +522,27 @@ export class CodexAppServerClient {
     if (!this.proc) {
       return;
     }
-    this.proc.stdin.write(`${JSON.stringify({ method, params })}\n`);
+    this.writePayload(JSON.stringify({ method, params }));
+  }
+
+  private writePayload(
+    payload: string,
+    callback?: (error?: Error | null) => void
+  ): void {
+    if (this.sharedEndpoint) {
+      if (this.websocket?.readyState !== WebSocket.OPEN) {
+        callback?.(new Error("Codex shared app-server connection is not open."));
+        return;
+      }
+      this.websocket.send(payload, (error) => callback?.(error));
+      return;
+    }
+
+    if (!this.proc) {
+      callback?.(new Error("Codex app-server is not running."));
+      return;
+    }
+    this.proc.stdin.write(`${payload}\n`, callback);
   }
 
   private handleLine(line: string): void {
@@ -482,7 +643,7 @@ export class CodexAppServerClient {
       return;
     }
 
-    this.proc.stdin.write(`${JSON.stringify({ id, error: { code, message } })}\n`);
+    this.writePayload(JSON.stringify({ id, error: { code, message } }));
   }
 
   private rememberRemoteControlStatus(
@@ -511,8 +672,16 @@ export class CodexAppServerClient {
   }
 }
 
-function requestProcessExit(proc: ChildProcessWithoutNullStreams): void {
+function requestProcessExit(
+  proc: ChildProcessWithoutNullStreams,
+  usesSharedSocket: boolean
+): void {
   if (proc.exitCode !== null || proc.signalCode !== null) {
+    return;
+  }
+
+  if (usesSharedSocket) {
+    terminateProcessTree(proc);
     return;
   }
 
@@ -521,6 +690,28 @@ function requestProcessExit(proc: ChildProcessWithoutNullStreams): void {
   } catch {
     terminateProcessTree(proc);
   }
+}
+
+function openWebSocket(url: string, handshakeTimeout: number): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const websocket = new WebSocket(url, {
+      handshakeTimeout,
+      perMessageDeflate: false
+    });
+
+    const handleOpen = () => {
+      websocket.off("error", handleError);
+      resolve(websocket);
+    };
+    const handleError = (error: Error) => {
+      websocket.off("open", handleOpen);
+      websocket.removeAllListeners();
+      websocket.terminate();
+      reject(error);
+    };
+    websocket.once("open", handleOpen);
+    websocket.once("error", handleError);
+  });
 }
 
 function terminateProcessTree(proc: ChildProcessWithoutNullStreams): void {
@@ -572,6 +763,10 @@ async function waitWithTimeout(promise: Promise<void>, milliseconds: number): Pr
     clearTimeout(timer);
   }
   return completed;
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function isNeedsInputMethod(method: string): boolean {

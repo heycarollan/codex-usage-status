@@ -25,6 +25,7 @@ import {
   type RemoteControlStatusSnapshot
 } from "./remoteControl";
 import { RemoteControlHostLease } from "./remoteControlLease";
+import { isSharedAppServerSupported } from "./sharedAppServer";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { selectEarliestExpiringResetCredit, UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
@@ -99,12 +100,14 @@ export function activate(context: vscode.ExtensionContext): void {
       const previousExecutableSource = settings.codexExecutableSource;
       const previousTimeout = settings.requestTimeoutMs;
       const previousRemoteControlEnabled = settings.remoteControlEnabled;
+      const previousSharedRemoteHostEnabled = settings.sharedRemoteHostEnabled;
       settings = getSettings();
 
       if (
         previousExecutable !== settings.codexExecutable ||
         previousExecutableSource !== settings.codexExecutableSource ||
-        previousTimeout !== settings.requestTimeoutMs
+        previousTimeout !== settings.requestTimeoutMs ||
+        previousSharedRemoteHostEnabled !== settings.sharedRemoteHostEnabled
       ) {
         createClient();
         void syncRemoteControlSetting();
@@ -171,6 +174,9 @@ function registerCommands(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("codexUsage.openRemoteControl", async () => {
       await openRemoteControlSettings(context);
+    }),
+    vscode.commands.registerCommand("codexUsage.openSharedCodexTerminal", async () => {
+      await openSharedCodexTerminal();
     })
   );
 }
@@ -263,8 +269,50 @@ function createClient(): void {
         });
       }
     }
+  }, {
+    sharedHost: settings.sharedRemoteHostEnabled && isSharedAppServerSupported()
   });
   usageService = new UsageService(client);
+}
+
+async function openSharedCodexTerminal(): Promise<void> {
+  if (!settings.sharedRemoteHostEnabled) {
+    vscode.window.showWarningMessage(
+      "Enable Shared live stream in Codex Companion before opening the shared terminal."
+    );
+    return;
+  }
+  if (!isSharedAppServerSupported()) {
+    vscode.window.showErrorMessage(
+      "The Codex Companion shared host currently requires Linux or macOS."
+    );
+    return;
+  }
+  if (!client) {
+    createClient();
+  }
+
+  try {
+    const endpoint = await client?.getSharedHostEndpoint();
+    if (!endpoint) {
+      throw new Error("The shared Codex app-server is not active.");
+    }
+    const terminal = vscode.window.createTerminal({
+      name: "Codex Shared Remote",
+      shellPath: resolveCodexExecutable(),
+      shellArgs: ["--remote", endpoint],
+      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    });
+    terminal.show();
+    vscode.window.setStatusBarMessage(
+      "Shared Codex terminal opened. Chats run there share Remote's live stream.",
+      5000
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Shared Codex terminal failed: ${message}`);
+    vscode.window.showErrorMessage(`Could not open the shared Codex terminal: ${message}`);
+  }
 }
 
 function schedulePolling(): void {
@@ -1085,6 +1133,9 @@ async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknow
       case "remoteRemove":
         await removeRemoteControl();
         return;
+      case "remoteOpenSharedTerminal":
+        await openSharedCodexTerminal();
+        return;
       case "remoteCopyPairingCode":
         await copyRemoteControlPairingCode();
         return;
@@ -1139,6 +1190,7 @@ function renderSettingsPanel(focusRemoteControl = false): void {
     focusRemoteControl,
     remoteControl: {
       supported: remoteControlSupported,
+      sharedHostSupported: isSharedAppServerSupported(),
       busy: remoteControlBusy,
       status: remoteControlStatus,
       pairing: remoteControlPairing,
