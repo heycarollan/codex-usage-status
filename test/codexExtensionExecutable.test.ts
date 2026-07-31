@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import test from "node:test";
-import { resolveCodexExtensionExecutable } from "../src/codexExtensionExecutable";
+import {
+  ensureCodexExecutableExists,
+  resolveCodexExtensionExecutable,
+} from "../src/codexExtensionExecutable";
 
 const cases: Array<{
   name: string;
@@ -78,5 +81,14 @@ for (const testCase of cases) {
 test("reports a missing Codex extension", () => {
   assert.throws(() =>
     resolveCodexExtensionExecutable(undefined, "linux", "x64"),
+  );
+});
+
+test("reports a missing executable file in Codex extension", () => {
+  assert.throws(() =>
+    ensureCodexExecutableExists(
+      "/fake/openai.chatgpt/bin/linux-x86_64/codex",
+      () => false,
+    ),
   );
 });

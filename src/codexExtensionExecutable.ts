@@ -1,3 +1,4 @@
+import { type PathLike } from 'node:fs';
 import { join } from "node:path";
 
 const CODEX_EXTENSION_ID = "openai.chatgpt";
@@ -39,4 +40,18 @@ export function resolveCodexExtensionExecutable(
     `${platformDirectory}-${architectureDirectory}`,
     platform === "win32" ? "codex.exe" : "codex",
   );
+}
+
+export function ensureCodexExecutableExists(
+  executable: string,
+  fileExists: (path: PathLike) => boolean,
+): string {
+  if (!fileExists(executable)) {
+    throw new Error(
+      `The Codex binary was not found in the official extension at ${executable}. ` +
+        "Update the official Codex extension or configure codexUsage.codexExecutable instead.",
+    );
+  }
+
+  return executable;
 }
