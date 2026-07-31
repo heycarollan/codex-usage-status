@@ -6,6 +6,7 @@
 - Shut Remote Control down ephemerally before app-server restart or extension deactivation, wait for the old child to exit, and prevent late exit events from invalidating or orphaning the replacement process.
 - Refresh every page of paired controller devices before **Remove Remote Connection**, report incomplete cleanup honestly, and keep removal limited to the supported disable and device-revocation APIs.
 - Explain that the supported Codex app-server API cannot list or delete saved Remote environments or force-refresh the ChatGPT phone app's active-chat list, with supported recovery steps for stale phone state.
+- Document that live thread activity is app-server-process-local: computer chats running in another Codex/ChatGPT process can lag on the phone until reopened, and no supported cross-process status or event API exists.
 - Verify that Codex CLI 0.144.1 and the official VS Code extension's 0.146.0-alpha.9.2 bundle expose the same Remote lifecycle shape and reuse the existing environment across ephemeral disable, re-enable, and process restart.
 
 ## 1.1.0

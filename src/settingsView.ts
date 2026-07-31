@@ -624,9 +624,9 @@ function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: b
     <h3>Paired devices</h3>
     ${devices}
     <article class="card credit">
-      <h3>Phone chat list looks stale?</h3>
-      <p>Try Disable and re-enable, Restart App Server, reload or fully restart VS Code, then Remove Remote Connection and pair again. Update and restart the ChatGPT mobile app as well.</p>
-      <p class="description">The supported Codex app-server API can disable this relay and revoke controller devices, but it cannot list or delete saved Remote environments or force-refresh ChatGPT's active-chat list. Entries that remain after re-pairing are OpenAI Remote synchronization state, not chats rendered or stored by Codex Companion.</p>
+      <h3>Phone chat list or activity looks stale?</h3>
+      <p>Chats started or continued through this Remote host can stream live activity. A chat already running in another Codex or ChatGPT app-server on the computer is visible here only through saved history, so its phone output and Thinking or Working indicator can lag until you close and reopen the chat.</p>
+      <p class="description">Codex reports live thread status only inside the app-server process running that turn. Its supported API cannot subscribe to another process's turn events, force-refresh ChatGPT's list, or list and delete saved Remote environments. Restart and re-pair steps can recover the relay, but they cannot make separate app-server processes share live activity. If the open chat streams correctly while its list row has no activity icon, that list rendering is controlled by the ChatGPT mobile app.</p>
       <div class="actions">
         <button type="button" class="secondary" data-command="restart"${disabled}>Restart App Server</button>
       </div>

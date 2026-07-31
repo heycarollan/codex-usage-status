@@ -59,6 +59,14 @@ The generated experimental schema exposes no Remote environment list, delete, un
 - Child exit/error handlers are bound to the process that emitted them. A late exit from an old process cannot clear the reference, initialization promise, or pending requests for its replacement.
 - Codex persists and reuses the same enrollment for the Companion client name. Live comparison on Codex CLI 0.144.1 and the official VS Code extension's 0.146.0-alpha.9.2 bundle showed the same environment before and after ephemeral disable/re-enable and process restart; neither schema adds a cleanup API.
 
+## Live activity limitation
+
+Codex app-server's `ThreadWatchManager` and loaded-thread runtime are process-scoped. `thread/status/changed`, streamed turn items, approval state, and Thinking or Working status originate only from the app-server process executing that turn. A second app-server can discover persisted threads through `thread/list`, but it reports threads owned by another live process as `notLoaded` and receives none of that process's turn notifications.
+
+This matters because Codex Companion starts its own supported `codex app-server`, while the official Codex or ChatGPT computer interface normally runs another app-server. Chats started or continued through Companion Remote can stream normally. Computer-started chats can appear from shared saved history, but their phone transcript and list activity may lag until ChatGPT requests a fresh read, such as after closing and reopening the chat. The supported protocol exposes no cross-process attach, event subscription, invalidation, or status-set method. Loading or resuming an already-running thread in the Companion process would create competing runtimes and is not a safe workaround.
+
+The extension must not claim to fix this boundary. Relay restart and re-pair actions address connectivity only. A missing list-row activity icon when the open chat is otherwise streaming is additionally owned by ChatGPT mobile's rendering and synchronization.
+
 ## Trust boundaries
 
 - **Local extension host:** trusted to start Codex, render setup state, and invoke the fixed remote-control API.
