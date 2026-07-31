@@ -1,8 +1,8 @@
 {
   "name": "codex-usage-status",
-  "displayName": "Codex Usage Status",
-  "description": "Track Codex usage and reset credits, get completion alerts, and jump back to completed chats from VS Code.",
-  "version": "1.0.1",
+  "displayName": "Codex Companion: Remote Control, Usage Status & Resets",
+  "description": "Control Codex remotely from ChatGPT, monitor usage status, get completion alerts, reopen chats, and manage reset credits in VS Code.",
+  "version": "1.1.0",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -13,6 +13,16 @@
     "codex",
     "openai",
     "codex notifier",
+    "codex companion",
+    "codex cli",
+    "codex remote control",
+    "remote codex",
+    "chatgpt remote",
+    "remote control",
+    "mobile",
+    "linux",
+    "headless",
+    "vscode",
     "completion notification",
     "chat switch",
     "usage tracker",
@@ -48,34 +58,39 @@
     "onCommand:codexUsage.restartAppServer",
     "onCommand:codexUsage.resetUsage",
     "onCommand:codexUsage.openSettings",
-    "onCommand:codexUsage.openLogs"
+    "onCommand:codexUsage.openLogs",
+    "onCommand:codexUsage.openRemoteControl"
   ],
   "main": "./dist/src/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "codexUsage.refresh",
-        "title": "Codex Usage: Refresh"
+        "title": "Codex Companion: Refresh Usage"
       },
       {
         "command": "codexUsage.restartAppServer",
-        "title": "Codex Usage: Restart App Server"
+        "title": "Codex Companion: Restart App Server"
       },
       {
         "command": "codexUsage.resetUsage",
-        "title": "Codex Usage: Use Reset Credit"
+        "title": "Codex Companion: Use Reset Credit"
       },
       {
         "command": "codexUsage.openSettings",
-        "title": "Codex Usage: Open Settings"
+        "title": "Codex Companion: Open Settings"
       },
       {
         "command": "codexUsage.openLogs",
-        "title": "Codex Usage: Open Logs"
+        "title": "Codex Companion: Open Logs"
+      },
+      {
+        "command": "codexUsage.openRemoteControl",
+        "title": "Codex Companion: Set Up Remote Control"
       }
     ],
     "configuration": {
-      "title": "Codex Usage Status",
+      "title": "Codex Companion",
       "properties": {
         "codexUsage.codexExecutableSource": {
           "type": "string",
@@ -104,7 +119,7 @@
         "codexUsage.showExtraBuckets": {
           "type": "boolean",
           "default": true,
-          "description": "Show model-specific Codex usage buckets in the tooltip and Codex Usage Settings."
+          "description": "Show model-specific Codex usage buckets in the tooltip and Codex Companion settings."
         },
         "codexUsage.statusFormat": {
           "type": "string",
@@ -156,7 +171,7 @@
             "Use both Linux desktop and VS Code notifications when VS Code is unfocused."
           ],
           "default": "vscode",
-          "description": "Controls how Codex Usage Status delivers notifications."
+          "description": "Controls how Codex Companion delivers notifications."
         },
         "codexUsage.completionChatAction": {
           "type": "string",
@@ -172,6 +187,11 @@
           ],
           "default": "exact",
           "description": "Controls what completion-notification actions open."
+        },
+        "codexUsage.remoteControlEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt in to Codex remote control through OpenAI's internet relay while VS Code is running. Pair and revoke ChatGPT devices from Codex Companion."
         }
       }
     }
@@ -180,7 +200,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-1.0.1.vsix",
+    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.1.0.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

@@ -16,19 +16,34 @@ import {
 import { getSettings } from "./config";
 import { buildUnavailableStatusTooltip, formatStatus } from "./format";
 import { normalizeSettingUpdate, renderSettingsView } from "./settingsView";
+import {
+  buildRemoteControlStatusBarPresentation,
+  isPairingArtifactExpired,
+  redactRemoteControlSecrets,
+  type RemoteControlClientDevice,
+  type RemoteControlPairingArtifact,
+  type RemoteControlStatusSnapshot
+} from "./remoteControl";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { selectEarliestExpiringResetCredit, UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
 
 const THREAD_COMPLETION_POLL_LIMIT = 8;
+const REMOTE_CONTROL_CONNECT_ATTEMPTS = 20;
+const REMOTE_CONTROL_CONNECT_DELAY_MS = 500;
+const REMOTE_CONTROL_PAIRING_POLL_MS = 3000;
+const REMOTE_CONTROL_ONBOARDING_KEY = "codexCompanion.remoteControlOnboarding.v1";
+const REMOTE_CONTROL_SETUP_ACTION = "Set Up Remote Control";
 
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
 let clientSetupError: Error | null = null;
 let statusItem: vscode.StatusBarItem;
+let remoteStatusItem: vscode.StatusBarItem;
 let settingsPanel: vscode.WebviewPanel | null = null;
 let output: vscode.OutputChannel;
 let refreshTimer: NodeJS.Timeout | null = null;
+let remotePairingTimer: NodeJS.Timeout | null = null;
 let latestSnapshot: NormalizedUsageSnapshot | null = null;
 let latestUsageError: string | null = null;
 let settings: ExtensionSettings;
@@ -40,16 +55,32 @@ let threadCompletionPollBootstrapped = false;
 let threadCompletionPollInFlight = false;
 let threadCompletionPollErrorLogged = false;
 let fallbackTurnNotificationSequence = 0;
+let remoteControlSupported = true;
+let remoteControlBusy = false;
+let remoteControlPollInFlight = false;
+let remotePairingPollInFlight = false;
+let remoteControlStatus: RemoteControlStatusSnapshot | null = null;
+let lastRemoteControlEnvironmentId: string | null = null;
+let remoteControlPairing: RemoteControlPairingArtifact | null = null;
+let remoteControlClients: RemoteControlClientDevice[] = [];
+let remoteControlError: string | null = null;
+let remoteControlOnboardingHighlighted = false;
 
 export function activate(context: vscode.ExtensionContext): void {
-  output = vscode.window.createOutputChannel("Codex Usage Status");
+  output = vscode.window.createOutputChannel("Codex Companion");
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
   statusItem.command = "codexUsage.openSettings";
-  context.subscriptions.push(output, statusItem);
+  remoteStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 97);
+  remoteStatusItem.command = "codexUsage.openRemoteControl";
+  context.subscriptions.push(output, statusItem, remoteStatusItem);
 
   settings = getSettings();
   createClient();
   registerCommands(context);
+  updateRemoteStatusItem();
+  remoteStatusItem.show();
+  void showRemoteControlOnboarding(context);
+  void syncRemoteControlSetting();
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -60,6 +91,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const previousExecutable = settings.codexExecutable;
       const previousExecutableSource = settings.codexExecutableSource;
       const previousTimeout = settings.requestTimeoutMs;
+      const previousRemoteControlEnabled = settings.remoteControlEnabled;
       settings = getSettings();
 
       if (
@@ -68,6 +100,12 @@ export function activate(context: vscode.ExtensionContext): void {
         previousTimeout !== settings.requestTimeoutMs
       ) {
         createClient();
+        void syncRemoteControlSetting();
+      } else if (
+        previousRemoteControlEnabled !== settings.remoteControlEnabled &&
+        !remoteControlBusy
+      ) {
+        void syncRemoteControlSetting();
       }
 
       schedulePolling();
@@ -88,6 +126,10 @@ export function deactivate(): void {
   if (refreshTimer) {
     clearInterval(refreshTimer);
     refreshTimer = null;
+  }
+  if (remotePairingTimer) {
+    clearInterval(remotePairingTimer);
+    remotePairingTimer = null;
   }
   client?.dispose();
 }
@@ -111,8 +153,43 @@ function registerCommands(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("codexUsage.openLogs", () => {
       output.show();
+    }),
+    vscode.commands.registerCommand("codexUsage.openRemoteControl", async () => {
+      await openRemoteControlSettings(context);
     })
   );
+}
+
+async function showRemoteControlOnboarding(context: vscode.ExtensionContext): Promise<void> {
+  if (context.globalState.get<boolean>(REMOTE_CONTROL_ONBOARDING_KEY, false)) {
+    return;
+  }
+
+  await context.globalState.update(REMOTE_CONTROL_ONBOARDING_KEY, true);
+  remoteControlOnboardingHighlighted = true;
+  updateRemoteStatusItem();
+
+  const selection = await vscode.window.showInformationMessage(
+    "Codex Companion now includes full ChatGPT Remote setup (experimental). Use the new Remote button beside Codex usage to pair this computer.",
+    REMOTE_CONTROL_SETUP_ACTION,
+    "Not now"
+  );
+
+  remoteControlOnboardingHighlighted = false;
+  updateRemoteStatusItem();
+
+  if (selection === REMOTE_CONTROL_SETUP_ACTION) {
+    await openRemoteControlSettings(context);
+  }
+}
+
+async function openRemoteControlSettings(context: vscode.ExtensionContext): Promise<void> {
+  openSettingsPanel(context, true);
+  await refreshRemoteControl();
+  await settingsPanel?.webview.postMessage({
+    type: "focusSection",
+    section: "remote-control"
+  });
 }
 
 function createClient(): void {
@@ -155,6 +232,18 @@ function createClient(): void {
         "Codex needs input",
         message
       );
+    },
+    onRemoteControlStatusChanged: (status) => {
+      applyRemoteControlStatus(status);
+      remoteControlSupported = true;
+      remoteControlError = null;
+      renderSettingsPanel();
+      if (status.environmentId) {
+        void refreshRemoteControlClients(status.environmentId).catch((error) => {
+          setRemoteControlError(error);
+          renderSettingsPanel();
+        });
+      }
     }
   });
   usageService = new UsageService(client);
@@ -169,6 +258,9 @@ function schedulePolling(): void {
   refreshTimer = setInterval(() => {
     void refreshUsage();
     void pollThreadCompletions();
+    if (settings.remoteControlEnabled || settingsPanel) {
+      void refreshRemoteControl();
+    }
   }, intervalMs);
 }
 
@@ -380,6 +472,7 @@ async function restartAppServer(): Promise<void> {
 
   try {
     await client?.restart();
+    await syncRemoteControlSetting();
     await refreshUsage(true);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -435,17 +528,395 @@ async function resetUsage(): Promise<void> {
   }
 }
 
-function openSettingsPanel(context: vscode.ExtensionContext): void {
+async function syncRemoteControlSetting(): Promise<void> {
+  if (!client || remoteControlBusy) {
+    return;
+  }
+
+  remoteControlBusy = true;
+  renderSettingsPanel();
+
+  try {
+    let status = await client.getRemoteControlStatus();
+    if (settings.remoteControlEnabled && status.status !== "connected" && status.status !== "connecting") {
+      status = await client.enableRemoteControl();
+      output.appendLine("Remote control enabled.");
+    } else if (!settings.remoteControlEnabled && status.status !== "disabled") {
+      status = await client.disableRemoteControl();
+      remoteControlPairing = null;
+      clearRemotePairingTimer();
+      output.appendLine("Remote control disabled.");
+    }
+
+    applyRemoteControlStatus(status);
+    remoteControlSupported = true;
+    remoteControlError = null;
+    if (status.environmentId) {
+      await refreshRemoteControlClients(status.environmentId);
+    }
+  } catch (error) {
+    setRemoteControlError(error);
+  } finally {
+    remoteControlBusy = false;
+    renderSettingsPanel();
+  }
+}
+
+async function refreshRemoteControl(showToast = false): Promise<void> {
+  if (!client || remoteControlPollInFlight) {
+    return;
+  }
+
+  remoteControlPollInFlight = true;
+  try {
+    const status = await client.getRemoteControlStatus();
+    applyRemoteControlStatus(status);
+    remoteControlSupported = true;
+    remoteControlError = null;
+    if (status.environmentId) {
+      await refreshRemoteControlClients(status.environmentId);
+    }
+    if (showToast) {
+      vscode.window.setStatusBarMessage(`Codex remote control: ${status.status}.`, 3000);
+    }
+  } catch (error) {
+    setRemoteControlError(error);
+    if (showToast) {
+      vscode.window.showErrorMessage(`Could not refresh Codex remote control: ${remoteControlError}`);
+    }
+  } finally {
+    remoteControlPollInFlight = false;
+    renderSettingsPanel();
+  }
+}
+
+async function enableAndPairRemoteControl(): Promise<void> {
+  if (!client || remoteControlBusy) {
+    return;
+  }
+
+  remoteControlBusy = true;
+  remoteControlError = null;
+  renderSettingsPanel();
+
+  try {
+    if (!settings.remoteControlEnabled) {
+      await vscode.workspace
+        .getConfiguration("codexUsage")
+        .update("remoteControlEnabled", true, vscode.ConfigurationTarget.Global);
+      settings = getSettings();
+    }
+
+    let status = await client.enableRemoteControl();
+    applyRemoteControlStatus(status);
+    output.appendLine("Remote control enabled.");
+    status = await waitForRemoteControlConnection(status);
+
+    if (status.status !== "connected") {
+      throw new Error(
+        status.status === "errored"
+          ? "Codex could not connect to the remote-control relay."
+          : "Codex remote control did not connect before the pairing request timed out."
+      );
+    }
+
+    remoteControlPairing = await client.startRemoteControlPairing();
+    lastRemoteControlEnvironmentId = remoteControlPairing.environmentId;
+    remoteControlSupported = true;
+    remoteControlError = null;
+    output.appendLine(
+      `Remote control pairing code created; expires ${new Date(remoteControlPairing.expiresAt * 1000).toISOString()}.`
+    );
+    scheduleRemotePairingPoll();
+    await refreshRemoteControlClients(remoteControlPairing.environmentId);
+    vscode.window.showInformationMessage(
+      "Codex remote-control pairing code is ready. Copy it from Codex Companion into ChatGPT Remote."
+    );
+  } catch (error) {
+    setRemoteControlError(error);
+    vscode.window.showErrorMessage(`Could not create a Codex remote-control pairing code: ${remoteControlError}`);
+  } finally {
+    remoteControlBusy = false;
+    renderSettingsPanel();
+  }
+}
+
+async function disableRemoteControl(): Promise<void> {
+  if (!client || remoteControlBusy) {
+    return;
+  }
+
+  const confirmation = await vscode.window.showWarningMessage(
+    "Disable Codex remote control on this computer? Existing device grants are retained until revoked.",
+    { modal: true },
+    "Disable Remote Control"
+  );
+  if (confirmation !== "Disable Remote Control") {
+    return;
+  }
+
+  remoteControlBusy = true;
+  renderSettingsPanel();
+
+  try {
+    await vscode.workspace
+      .getConfiguration("codexUsage")
+      .update("remoteControlEnabled", false, vscode.ConfigurationTarget.Global);
+    settings = getSettings();
+    applyRemoteControlStatus(await client.disableRemoteControl());
+    remoteControlPairing = null;
+    clearRemotePairingTimer();
+    remoteControlError = null;
+    output.appendLine("Remote control disabled.");
+  } catch (error) {
+    setRemoteControlError(error);
+    vscode.window.showErrorMessage(`Could not disable Codex remote control: ${remoteControlError}`);
+  } finally {
+    remoteControlBusy = false;
+    renderSettingsPanel();
+  }
+}
+
+async function removeRemoteControl(): Promise<void> {
+  if (!client || remoteControlBusy) {
+    return;
+  }
+
+  const confirmation = await vscode.window.showWarningMessage(
+    "Remove this computer's Codex Remote connection? Remote access will be disabled and every listed paired device will be revoked. You can set it up again later.",
+    { modal: true },
+    "Remove Remote Connection"
+  );
+  if (confirmation !== "Remove Remote Connection") {
+    return;
+  }
+
+  remoteControlBusy = true;
+  renderSettingsPanel();
+
+  const failedDevices: RemoteControlClientDevice[] = [];
+  try {
+    const environmentId = remoteControlStatus?.environmentId ?? lastRemoteControlEnvironmentId;
+    if (environmentId) {
+      for (const device of remoteControlClients) {
+        try {
+          await client.revokeRemoteControlClient(environmentId, device.clientId);
+        } catch {
+          failedDevices.push(device);
+        }
+      }
+    }
+
+    await vscode.workspace
+      .getConfiguration("codexUsage")
+      .update("remoteControlEnabled", false, vscode.ConfigurationTarget.Global);
+    settings = getSettings();
+    applyRemoteControlStatus(await client.disableRemoteControl());
+    remoteControlPairing = null;
+    clearRemotePairingTimer();
+    remoteControlClients = failedDevices;
+    remoteControlError = failedDevices.length > 0
+      ? `${failedDevices.length} paired device${failedDevices.length === 1 ? "" : "s"} could not be revoked. Retry removal or re-enable Remote Control and revoke them individually.`
+      : null;
+
+    const revokedCount = remoteControlClients.length === 0
+      ? "All listed paired devices were revoked."
+      : "Some paired devices still need to be revoked.";
+    output.appendLine(
+      `Remote connection removed; ${failedDevices.length} device revocation${failedDevices.length === 1 ? "" : "s"} failed.`
+    );
+    const message = `Codex Remote is disconnected. ${revokedCount} You can set it up again from the Remote button.`;
+    if (failedDevices.length > 0) {
+      vscode.window.showWarningMessage(message);
+    } else {
+      vscode.window.showInformationMessage(message);
+    }
+  } catch (error) {
+    setRemoteControlError(error);
+    vscode.window.showErrorMessage(`Could not remove the Codex Remote connection: ${remoteControlError}`);
+  } finally {
+    remoteControlBusy = false;
+    renderSettingsPanel(true);
+  }
+}
+
+async function copyRemoteControlPairingCode(): Promise<void> {
+  if (!remoteControlPairing || isPairingArtifactExpired(remoteControlPairing)) {
+    remoteControlPairing = null;
+    clearRemotePairingTimer();
+    renderSettingsPanel();
+    vscode.window.showWarningMessage("That remote-control pairing code has expired. Create a new code.");
+    return;
+  }
+
+  await vscode.env.clipboard.writeText(remoteControlPairing.manualPairingCode);
+  vscode.window.setStatusBarMessage("Codex remote-control pairing code copied.", 3000);
+}
+
+async function revokeRemoteControlClient(clientId: unknown): Promise<void> {
+  if (!client || remoteControlBusy || typeof clientId !== "string") {
+    return;
+  }
+
+  const device = remoteControlClients.find((candidate) => candidate.clientId === clientId);
+  if (!device) {
+    vscode.window.showErrorMessage("That paired device is no longer available.");
+    return;
+  }
+
+  const environmentId = remoteControlStatus?.environmentId ?? lastRemoteControlEnvironmentId;
+  if (!environmentId) {
+    vscode.window.showErrorMessage("Re-enable remote control before managing paired devices.");
+    return;
+  }
+
+  const name = device.displayName ?? device.deviceModel ?? device.deviceType ?? "this device";
+  const confirmation = await vscode.window.showWarningMessage(
+    `Revoke Codex remote-control access for ${name}?`,
+    { modal: true },
+    "Revoke Device"
+  );
+  if (confirmation !== "Revoke Device") {
+    return;
+  }
+
+  remoteControlBusy = true;
+  renderSettingsPanel();
+  try {
+    await client.revokeRemoteControlClient(environmentId, clientId);
+    remoteControlClients = remoteControlClients.filter((candidate) => candidate.clientId !== clientId);
+    remoteControlError = null;
+    output.appendLine("Remote controller device revoked.");
+  } catch (error) {
+    setRemoteControlError(error);
+    vscode.window.showErrorMessage(`Could not revoke the remote-control device: ${remoteControlError}`);
+  } finally {
+    remoteControlBusy = false;
+    renderSettingsPanel();
+  }
+}
+
+async function refreshRemoteControlClients(environmentId: string): Promise<void> {
+  if (!client) {
+    return;
+  }
+
+  const response = await client.listRemoteControlClients(environmentId);
+  remoteControlClients = response.data;
+  lastRemoteControlEnvironmentId = environmentId;
+}
+
+async function waitForRemoteControlConnection(
+  initialStatus: RemoteControlStatusSnapshot
+): Promise<RemoteControlStatusSnapshot> {
+  let status = initialStatus;
+  for (let attempt = 0; attempt < REMOTE_CONTROL_CONNECT_ATTEMPTS; attempt += 1) {
+    if (status.status !== "connecting") {
+      return status;
+    }
+    await delay(REMOTE_CONTROL_CONNECT_DELAY_MS);
+    status = await client!.getRemoteControlStatus();
+    applyRemoteControlStatus(status);
+    renderSettingsPanel();
+  }
+  return status;
+}
+
+function scheduleRemotePairingPoll(): void {
+  clearRemotePairingTimer();
+  remotePairingTimer = setInterval(() => {
+    void pollRemoteControlPairing();
+  }, REMOTE_CONTROL_PAIRING_POLL_MS);
+}
+
+async function pollRemoteControlPairing(): Promise<void> {
+  if (!client || !remoteControlPairing || remotePairingPollInFlight) {
+    return;
+  }
+
+  if (isPairingArtifactExpired(remoteControlPairing)) {
+    remoteControlPairing = null;
+    clearRemotePairingTimer();
+    renderSettingsPanel();
+    return;
+  }
+
+  remotePairingPollInFlight = true;
+  try {
+    const claimed = await client.isRemoteControlPairingClaimed(remoteControlPairing.pairingCode);
+    if (!claimed) {
+      return;
+    }
+
+    const environmentId = remoteControlPairing.environmentId;
+    remoteControlPairing = null;
+    clearRemotePairingTimer();
+    await refreshRemoteControlClients(environmentId);
+    output.appendLine("Remote controller device paired.");
+    vscode.window.showInformationMessage("ChatGPT Remote is now paired with this computer.");
+    renderSettingsPanel();
+  } catch (error) {
+    setRemoteControlError(error);
+    clearRemotePairingTimer();
+    renderSettingsPanel();
+  } finally {
+    remotePairingPollInFlight = false;
+  }
+}
+
+function clearRemotePairingTimer(): void {
+  if (remotePairingTimer) {
+    clearInterval(remotePairingTimer);
+    remotePairingTimer = null;
+  }
+}
+
+function applyRemoteControlStatus(status: RemoteControlStatusSnapshot): void {
+  remoteControlStatus = status;
+  if (status.environmentId) {
+    lastRemoteControlEnvironmentId = status.environmentId;
+  }
+}
+
+function setRemoteControlError(error: unknown): void {
+  const message = redactRemoteControlSecrets(
+    error instanceof Error ? error.message : String(error),
+    [
+      remoteControlPairing?.pairingCode,
+      remoteControlPairing?.manualPairingCode,
+      remoteControlPairing?.environmentId,
+      remoteControlStatus?.installationId,
+      remoteControlStatus?.environmentId,
+      lastRemoteControlEnvironmentId,
+      ...remoteControlClients.map((client) => client.clientId)
+    ]
+  );
+  const unsupported = /method not found|unknown method|unsupported.*remote.?control/i.test(message);
+  remoteControlSupported = !unsupported;
+  remoteControlError = unsupported
+    ? "This Codex executable does not support remote control. Update Codex or select the newer bundled executable."
+    : message;
+  output.appendLine(`Remote control failed: ${remoteControlError}`);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function openSettingsPanel(
+  context: vscode.ExtensionContext,
+  focusRemoteControl = false
+): void {
   if (settingsPanel) {
     settingsPanel.reveal(vscode.ViewColumn.Active);
-    renderSettingsPanel();
+    renderSettingsPanel(focusRemoteControl);
     void refreshUsage();
     return;
   }
 
   const panel = vscode.window.createWebviewPanel(
     "codexUsage.settings",
-    "Codex Usage Settings",
+    "Codex Companion",
     vscode.ViewColumn.Active,
     {
       enableScripts: true,
@@ -470,7 +941,7 @@ function openSettingsPanel(context: vscode.ExtensionContext): void {
     }
   });
 
-  renderSettingsPanel();
+  renderSettingsPanel(focusRemoteControl);
   void refreshUsage();
 }
 
@@ -482,6 +953,7 @@ async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknow
   const payload = message as {
     type?: unknown;
     command?: unknown;
+    clientId?: unknown;
     key?: unknown;
     value?: unknown;
   };
@@ -499,6 +971,24 @@ async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknow
         return;
       case "reset":
         await resetUsage();
+        return;
+      case "remotePair":
+        await enableAndPairRemoteControl();
+        return;
+      case "remoteRefresh":
+        await refreshRemoteControl(true);
+        return;
+      case "remoteDisable":
+        await disableRemoteControl();
+        return;
+      case "remoteRemove":
+        await removeRemoteControl();
+        return;
+      case "remoteCopyPairingCode":
+        await copyRemoteControlPairingCode();
+        return;
+      case "remoteRevoke":
+        await revokeRemoteControlClient(payload.clientId);
         return;
       default:
         return;
@@ -533,7 +1023,8 @@ async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknow
   }
 }
 
-function renderSettingsPanel(): void {
+function renderSettingsPanel(focusRemoteControl = false): void {
+  updateRemoteStatusItem();
   if (!settingsPanel) {
     return;
   }
@@ -543,8 +1034,42 @@ function renderSettingsPanel(): void {
     nonce: randomBytes(18).toString("base64"),
     settings,
     snapshot: latestSnapshot,
-    errorMessage: latestUsageError
+    errorMessage: latestUsageError,
+    focusRemoteControl,
+    remoteControl: {
+      supported: remoteControlSupported,
+      busy: remoteControlBusy,
+      status: remoteControlStatus,
+      pairing: remoteControlPairing,
+      clients: remoteControlClients,
+      errorMessage: remoteControlError
+    }
   });
+}
+
+function updateRemoteStatusItem(): void {
+  if (!remoteStatusItem) {
+    return;
+  }
+
+  const presentation = buildRemoteControlStatusBarPresentation({
+    supported: remoteControlSupported,
+    busy: remoteControlBusy,
+    status: remoteControlStatus?.status ?? null,
+    errorMessage: remoteControlError,
+    onboardingHighlighted: remoteControlOnboardingHighlighted
+  });
+
+  remoteStatusItem.text = presentation.text;
+  remoteStatusItem.tooltip = presentation.tooltip;
+  remoteStatusItem.accessibilityInformation = {
+    label: presentation.accessibilityLabel,
+    role: "button"
+  };
+  remoteStatusItem.backgroundColor = presentation.warning
+    ? new vscode.ThemeColor("statusBarItem.warningBackground")
+    : undefined;
+  remoteStatusItem.show();
 }
 
 function formatResetOutcome(outcome: string): string {
@@ -677,7 +1202,7 @@ function showNativeCompletionNotification(
   return new Promise((resolve) => {
     let settled = false;
     const args = [
-      "--app-name=Codex Usage Status",
+      "--app-name=Codex Companion",
       "--icon=code",
       "--urgency=normal"
     ];
@@ -730,7 +1255,7 @@ function showNativeNotification(
     const proc = spawn(
       "notify-send",
       [
-        "--app-name=Codex Usage Status",
+        "--app-name=Codex Companion",
         "--icon=code",
         "--urgency=normal",
         title,

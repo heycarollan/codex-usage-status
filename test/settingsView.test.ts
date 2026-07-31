@@ -15,7 +15,22 @@ const settings: ExtensionSettings = {
   notifyTurnComplete: true,
   notifyNeedsInput: true,
   notificationMode: "vscode",
-  completionChatAction: "exact"
+  completionChatAction: "exact",
+  remoteControlEnabled: false
+};
+
+const remoteControl = {
+  supported: true,
+  busy: false,
+  status: {
+    status: "disabled" as const,
+    serverName: "workstation",
+    installationId: "installation-1",
+    environmentId: null
+  },
+  pairing: null,
+  clients: [],
+  errorMessage: null
 };
 
 const snapshot: NormalizedUsageSnapshot = {
@@ -90,10 +105,11 @@ test("renders usage, reset details, actions, and every configurable setting", ()
     nonce: "nonce-value",
     settings,
     snapshot,
-    errorMessage: null
+    errorMessage: null,
+    remoteControl
   });
 
-  assert.match(html, /Codex Usage Settings/);
+  assert.match(html, /Codex Companion/);
   assert.match(html, /Codex Spark/);
   assert.match(html, /12%/);
   assert.match(html, /Lifetime tokens/);
@@ -103,6 +119,7 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.match(html, /Resets the current Codex rate limits\./);
   assert.match(html, /data-command="reset"/);
   assert.doesNotMatch(html, /data-command="reset" disabled/);
+  assert.match(html, /data-command="remoteRemove" disabled/);
 
   for (const key of [
     "refreshIntervalSeconds",
@@ -115,7 +132,8 @@ test("renders usage, reset details, actions, and every configurable setting", ()
     "notifyTurnComplete",
     "notifyNeedsInput",
     "notificationMode",
-    "completionChatAction"
+    "completionChatAction",
+    "remoteControlEnabled"
   ]) {
     assert.match(html, new RegExp(`data-setting="${key}"`));
   }
@@ -130,7 +148,8 @@ test("renders an unavailable state safely and disables reset", () => {
       codexExecutable: `codex"><script>bad()</script>`
     },
     snapshot: null,
-    errorMessage: `<script>alert("bad")</script>`
+    errorMessage: `<script>alert("bad")</script>`,
+    remoteControl
   });
 
   assert.match(html, /Usage unavailable/);
@@ -146,7 +165,8 @@ test("hides model-specific buckets when disabled", () => {
     nonce: "nonce-value",
     settings: { ...settings, showExtraBuckets: false },
     snapshot,
-    errorMessage: null
+    errorMessage: null,
+    remoteControl
   });
 
   assert.doesNotMatch(html, /Codex Spark/);
@@ -171,6 +191,10 @@ test("validates settings messages before updating VS Code configuration", () => 
     { key: "completionChatAction", value: "sidebar" }
   );
   assert.deepEqual(
+    normalizeSettingUpdate("remoteControlEnabled", true),
+    { key: "remoteControlEnabled", value: true }
+  );
+  assert.deepEqual(
     normalizeSettingUpdate("codexExecutable", "  /usr/bin/codex  "),
     { key: "codexExecutable", value: "/usr/bin/codex" }
   );
@@ -180,4 +204,59 @@ test("validates settings messages before updating VS Code configuration", () => 
   assert.equal(normalizeSettingUpdate("notificationMode", "desktop"), null);
   assert.equal(normalizeSettingUpdate("completionChatAction", "private"), null);
   assert.equal(normalizeSettingUpdate("unknownSetting", true), null);
+});
+
+test("renders remote pairing and revocable devices without exposing raw markup", () => {
+  const html = renderSettingsView({
+    cspSource: "vscode-webview://test",
+    nonce: "nonce-value",
+    settings: { ...settings, remoteControlEnabled: true },
+    snapshot,
+    errorMessage: null,
+    focusRemoteControl: true,
+    remoteControl: {
+      supported: true,
+      busy: false,
+      status: {
+        status: "connected",
+        serverName: `workstation<script>bad()</script>`,
+        installationId: "installation-1",
+        environmentId: "environment-1"
+      },
+      pairing: {
+        pairingCode: "private-pairing-artifact",
+        manualPairingCode: `ABCD-1234<script>bad()</script>`,
+        environmentId: "environment-1",
+        expiresAt: 2000000000
+      },
+      clients: [
+        {
+          clientId: `client\"><script>bad()</script>`,
+          displayName: "Carol's phone",
+          deviceType: "phone",
+          platform: "Android",
+          osVersion: "16",
+          deviceModel: null,
+          appVersion: "1.2.3",
+          lastSeenAt: 1900000000
+        }
+      ],
+      errorMessage: null
+    }
+  });
+
+  assert.match(html, /Connected to OpenAI relay/);
+  assert.match(html, /id="remote-control" tabindex="-1"/);
+  assert.match(html, /requestAnimationFrame\(\(\) => focusSection\("remote-control"\)\)/);
+  assert.match(html, /event\.data\.section === "remote-control"/);
+  assert.match(html, /const previousViewState = vscode\.getState\(\)/);
+  assert.match(html, /vscode\.setState\(\{ scrollY: window\.scrollY \}\)/);
+  assert.match(html, /ABCD-1234&lt;script&gt;bad\(\)&lt;\/script&gt;/);
+  assert.match(html, /Carol&#39;s phone/);
+  assert.match(html, /data-command="remoteRevoke"/);
+  assert.match(html, /data-command="remoteRemove">/);
+  assert.match(html, /Remove Remote Connection/);
+  assert.match(html, /set it up again whenever you want/);
+  assert.doesNotMatch(html, /private-pairing-artifact/);
+  assert.doesNotMatch(html, /<script>bad\(\)<\/script>/);
 });

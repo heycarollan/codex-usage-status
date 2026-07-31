@@ -6,7 +6,9 @@ Please do not open public issues for vulnerabilities. Report security concerns p
 
 ## Scope
 
-This extension starts the local Codex app-server and requests account usage metadata. It should not read repository files, transmit usage data to third-party services, or store Codex credentials.
+This extension starts the local Codex app-server and requests account usage metadata. It should not read repository files directly, transmit usage data to third-party services, or store Codex credentials.
+
+Remote control is opt-in and uses Codex's official OpenAI relay. The extension must not bind an unauthenticated network listener, expose the raw app-server, log or persist pairing codes, bypass Codex approval policies, or forward arbitrary VS Code commands. Pairing and device revocation must remain explicit user actions.
 
 ## Local Secrets
 

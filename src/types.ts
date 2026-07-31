@@ -140,4 +140,5 @@ export interface ExtensionSettings {
   notifyNeedsInput: boolean;
   notificationMode: "native" | "vscode" | "both";
   completionChatAction: "exact" | "sidebar" | "none";
+  remoteControlEnabled: boolean;
 }
