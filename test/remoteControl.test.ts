@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildRemoteControlStatusBarPresentation,
   isPairingArtifactExpired,
   parseRemoteControlClientList,
   parseRemoteControlPairingArtifact,
@@ -8,6 +9,46 @@ import {
   parseRemoteControlStatus,
   redactRemoteControlSecrets
 } from "../src/remoteControl";
+
+test("presents a persistent Remote status-bar action for onboarding and connection state", () => {
+  assert.deepEqual(
+    buildRemoteControlStatusBarPresentation({
+      supported: true,
+      busy: false,
+      status: null,
+      errorMessage: null,
+      onboardingHighlighted: true
+    }),
+    {
+      text: "$(remote) Set up Remote",
+      tooltip: "New: set up full Codex Remote access from ChatGPT. Click to open the guided setup.",
+      accessibilityLabel: "Set up Codex Remote access",
+      warning: true
+    }
+  );
+
+  assert.match(
+    buildRemoteControlStatusBarPresentation({
+      supported: true,
+      busy: false,
+      status: "connected",
+      errorMessage: null,
+      onboardingHighlighted: false
+    }).text,
+    /Remote: On/
+  );
+
+  assert.equal(
+    buildRemoteControlStatusBarPresentation({
+      supported: true,
+      busy: false,
+      status: "disabled",
+      errorMessage: null,
+      onboardingHighlighted: false
+    }).text,
+    "$(remote) Remote"
+  );
+});
 
 test("parses supported remote-control status without requiring an environment id", () => {
   assert.deepEqual(

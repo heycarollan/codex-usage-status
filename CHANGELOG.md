@@ -10,6 +10,7 @@
 - Show relay connection state and paired controller devices, with explicit per-device revocation.
 - Reconnect remote control only when `codexUsage.remoteControlEnabled` is enabled; keep it disabled by default and expose no local network listener.
 - Add the `Codex Companion: Set Up Remote Control` command and document the always-awake host requirement and rollout constraints.
+- Add a persistent Remote status-bar button beside usage that opens and focuses the Remote Control section, plus one-time first-install guidance and highlighting.
 - Add a separate GitHub release badge so repository and Marketplace versions remain visually distinguishable.
 
 ## 1.0.1

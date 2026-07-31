@@ -10,7 +10,7 @@ For Linux users who do not run VS Code, the GitHub documentation routes directly
 
 ## User flow
 
-1. Open **Codex Companion** or run **Codex Companion: Set Up Remote Control**.
+1. Select the persistent **Remote** status-bar button beside usage. First install highlights the button and offers a one-click setup message.
 2. Select **Enable and create pairing code**.
 3. The extension enables Codex Remote Control and waits for the outbound relay connection.
 4. The extension requests a short-lived manual pairing code and displays it locally.
@@ -70,7 +70,9 @@ It listens only for `remoteControl/status/changed`. It does not accept remote re
 
 - `codexUsage.remoteControlEnabled` defaults to `false`.
 - The unified settings editor shows relay state, the local server name, the short-lived manual code, paired devices, and explicit refresh/disable/revoke actions.
-- **Codex Companion: Set Up Remote Control** opens the unified settings editor and refreshes status.
+- The persistent **Remote** status-bar button reflects Off, Connecting, On, or Error and opens the unified settings editor scrolled directly to Remote Control.
+- **Codex Companion: Set Up Remote Control** remains available as an alternate entry point and uses the same focused settings section.
+- A one-time first-install message explains the new button. While the message is open, the button receives the warning highlight; dismissing it does not hide the permanent button.
 - Pairing artifacts are not persisted across extension-host restarts.
 
 ## Product and documentation surfaces

@@ -212,6 +212,7 @@ test("renders remote pairing and revocable devices without exposing raw markup",
     settings: { ...settings, remoteControlEnabled: true },
     snapshot,
     errorMessage: null,
+    focusRemoteControl: true,
     remoteControl: {
       supported: true,
       busy: false,
@@ -244,6 +245,11 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   });
 
   assert.match(html, /Connected to OpenAI relay/);
+  assert.match(html, /id="remote-control" tabindex="-1"/);
+  assert.match(html, /requestAnimationFrame\(\(\) => focusSection\("remote-control"\)\)/);
+  assert.match(html, /event\.data\.section === "remote-control"/);
+  assert.match(html, /const previousViewState = vscode\.getState\(\)/);
+  assert.match(html, /vscode\.setState\(\{ scrollY: window\.scrollY \}\)/);
   assert.match(html, /ABCD-1234&lt;script&gt;bad\(\)&lt;\/script&gt;/);
   assert.match(html, /Carol&#39;s phone/);
   assert.match(html, /data-command="remoteRevoke"/);

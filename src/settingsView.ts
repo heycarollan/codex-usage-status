@@ -36,6 +36,7 @@ export interface SettingsViewState {
   settings: ExtensionSettings;
   snapshot: NormalizedUsageSnapshot | null;
   errorMessage: string | null;
+  focusRemoteControl?: boolean;
   remoteControl: RemoteControlViewState;
 }
 
@@ -78,7 +79,15 @@ export function normalizeSettingUpdate(key: unknown, value: unknown): Normalized
 }
 
 export function renderSettingsView(state: SettingsViewState): string {
-  const { cspSource, nonce, settings, snapshot, errorMessage, remoteControl } = state;
+  const {
+    cspSource,
+    nonce,
+    settings,
+    snapshot,
+    errorMessage,
+    focusRemoteControl,
+    remoteControl
+  } = state;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -131,6 +140,7 @@ export function renderSettingsView(state: SettingsViewState): string {
     section {
       border-bottom: 1px solid var(--vscode-panel-border);
       padding: 24px 0;
+      scroll-margin-top: 16px;
     }
     .notice {
       background: var(--vscode-inputValidation-errorBackground);
@@ -258,7 +268,7 @@ export function renderSettingsView(state: SettingsViewState): string {
       ${renderAccount(snapshot)}
     </section>
 
-    <section aria-labelledby="remote-control-heading">
+    <section id="remote-control" tabindex="-1" aria-labelledby="remote-control-heading">
       <h2 id="remote-control-heading">Remote control</h2>
       ${renderRemoteControl(remoteControl, settings.remoteControlEnabled)}
     </section>
@@ -374,6 +384,26 @@ export function renderSettingsView(state: SettingsViewState): string {
   <script nonce="${escapeAttribute(nonce)}">
     const vscode = acquireVsCodeApi();
     const saveStatus = document.getElementById("save-status");
+    const previousViewState = vscode.getState();
+    const focusSection = (sectionId) => {
+      const section = document.getElementById(sectionId);
+      if (!section) {
+        return;
+      }
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+      section.focus({ preventScroll: true });
+      requestAnimationFrame(() => vscode.setState({ scrollY: window.scrollY }));
+    };
+
+    if (${focusRemoteControl ? "true" : "false"}) {
+      requestAnimationFrame(() => focusSection("remote-control"));
+    } else if (typeof previousViewState?.scrollY === "number") {
+      requestAnimationFrame(() => window.scrollTo({ top: previousViewState.scrollY }));
+    }
+
+    window.addEventListener("scroll", () => {
+      vscode.setState({ scrollY: window.scrollY });
+    }, { passive: true });
 
     for (const button of document.querySelectorAll("[data-command]")) {
       button.addEventListener("click", () => {
@@ -410,6 +440,8 @@ export function renderSettingsView(state: SettingsViewState): string {
         saveStatus.textContent = "Saved.";
       } else if (event.data?.type === "settingError") {
         saveStatus.textContent = event.data.message || "Setting could not be saved.";
+      } else if (event.data?.type === "focusSection" && event.data.section === "remote-control") {
+        focusSection("remote-control");
       }
     });
   </script>

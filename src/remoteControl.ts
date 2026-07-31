@@ -34,6 +34,21 @@ export interface RemoteControlClientList {
   nextCursor: string | null;
 }
 
+export interface RemoteControlStatusBarPresentation {
+  text: string;
+  tooltip: string;
+  accessibilityLabel: string;
+  warning: boolean;
+}
+
+export interface RemoteControlStatusBarState {
+  supported: boolean;
+  busy: boolean;
+  status: RemoteControlConnectionStatus | null;
+  errorMessage: string | null;
+  onboardingHighlighted: boolean;
+}
+
 export function parseRemoteControlStatus(value: unknown): RemoteControlStatusSnapshot {
   const record = asRecord(value);
   const status = readStatus(record.status);
@@ -104,6 +119,62 @@ export function redactRemoteControlSecrets(
     }
     return redacted.split(value).join("[redacted]");
   }, message);
+}
+
+export function buildRemoteControlStatusBarPresentation(
+  state: RemoteControlStatusBarState
+): RemoteControlStatusBarPresentation {
+  if (state.onboardingHighlighted) {
+    return {
+      text: "$(remote) Set up Remote",
+      tooltip: "New: set up full Codex Remote access from ChatGPT. Click to open the guided setup.",
+      accessibilityLabel: "Set up Codex Remote access",
+      warning: true
+    };
+  }
+
+  if (state.busy || state.status === "connecting") {
+    return {
+      text: "$(sync~spin) Remote",
+      tooltip: "Codex Remote is connecting. Click to open Remote Control settings.",
+      accessibilityLabel: "Codex Remote is connecting",
+      warning: false
+    };
+  }
+
+  if (!state.supported) {
+    return {
+      text: "$(warning) Remote",
+      tooltip: state.errorMessage ?? "This Codex executable does not support Remote Control.",
+      accessibilityLabel: "Codex Remote is unavailable",
+      warning: true
+    };
+  }
+
+  if (state.status === "connected") {
+    return {
+      text: "$(remote) Remote: On",
+      tooltip: "Codex Remote is connected through OpenAI's relay. Click to manage access and paired devices.",
+      accessibilityLabel: "Codex Remote is connected",
+      warning: false
+    };
+  }
+
+  if (state.status === "errored" || state.errorMessage) {
+    return {
+      text: "$(warning) Remote",
+      tooltip: state.errorMessage ?? "Codex Remote could not connect. Click to review setup.",
+      accessibilityLabel: "Codex Remote has a connection error",
+      warning: true
+    };
+  }
+
+  return {
+    text: "$(remote) Remote",
+    tooltip: "Codex Remote is off. Click to pair this computer with ChatGPT Remote.",
+    accessibilityLabel: "Codex Remote is off; click to set it up",
+    warning: false
+  };
 }
 
 function parseRemoteControlClient(value: unknown): RemoteControlClientDevice {

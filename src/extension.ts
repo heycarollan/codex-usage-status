@@ -17,6 +17,7 @@ import { getSettings } from "./config";
 import { buildUnavailableStatusTooltip, formatStatus } from "./format";
 import { normalizeSettingUpdate, renderSettingsView } from "./settingsView";
 import {
+  buildRemoteControlStatusBarPresentation,
   isPairingArtifactExpired,
   redactRemoteControlSecrets,
   type RemoteControlClientDevice,
@@ -31,11 +32,14 @@ const THREAD_COMPLETION_POLL_LIMIT = 8;
 const REMOTE_CONTROL_CONNECT_ATTEMPTS = 20;
 const REMOTE_CONTROL_CONNECT_DELAY_MS = 500;
 const REMOTE_CONTROL_PAIRING_POLL_MS = 3000;
+const REMOTE_CONTROL_ONBOARDING_KEY = "codexCompanion.remoteControlOnboarding.v1";
+const REMOTE_CONTROL_SETUP_ACTION = "Set Up Remote Control";
 
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
 let clientSetupError: Error | null = null;
 let statusItem: vscode.StatusBarItem;
+let remoteStatusItem: vscode.StatusBarItem;
 let settingsPanel: vscode.WebviewPanel | null = null;
 let output: vscode.OutputChannel;
 let refreshTimer: NodeJS.Timeout | null = null;
@@ -60,16 +64,22 @@ let lastRemoteControlEnvironmentId: string | null = null;
 let remoteControlPairing: RemoteControlPairingArtifact | null = null;
 let remoteControlClients: RemoteControlClientDevice[] = [];
 let remoteControlError: string | null = null;
+let remoteControlOnboardingHighlighted = false;
 
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Companion");
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
   statusItem.command = "codexUsage.openSettings";
-  context.subscriptions.push(output, statusItem);
+  remoteStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 97);
+  remoteStatusItem.command = "codexUsage.openRemoteControl";
+  context.subscriptions.push(output, statusItem, remoteStatusItem);
 
   settings = getSettings();
   createClient();
   registerCommands(context);
+  updateRemoteStatusItem();
+  remoteStatusItem.show();
+  void showRemoteControlOnboarding(context);
   void syncRemoteControlSetting();
 
   context.subscriptions.push(
@@ -145,10 +155,41 @@ function registerCommands(context: vscode.ExtensionContext): void {
       output.show();
     }),
     vscode.commands.registerCommand("codexUsage.openRemoteControl", async () => {
-      openSettingsPanel(context);
-      await refreshRemoteControl();
+      await openRemoteControlSettings(context);
     })
   );
+}
+
+async function showRemoteControlOnboarding(context: vscode.ExtensionContext): Promise<void> {
+  if (context.globalState.get<boolean>(REMOTE_CONTROL_ONBOARDING_KEY, false)) {
+    return;
+  }
+
+  await context.globalState.update(REMOTE_CONTROL_ONBOARDING_KEY, true);
+  remoteControlOnboardingHighlighted = true;
+  updateRemoteStatusItem();
+
+  const selection = await vscode.window.showInformationMessage(
+    "Codex Companion now includes full ChatGPT Remote setup (experimental). Use the new Remote button beside Codex usage to pair this computer.",
+    REMOTE_CONTROL_SETUP_ACTION,
+    "Not now"
+  );
+
+  remoteControlOnboardingHighlighted = false;
+  updateRemoteStatusItem();
+
+  if (selection === REMOTE_CONTROL_SETUP_ACTION) {
+    await openRemoteControlSettings(context);
+  }
+}
+
+async function openRemoteControlSettings(context: vscode.ExtensionContext): Promise<void> {
+  openSettingsPanel(context, true);
+  await refreshRemoteControl();
+  await settingsPanel?.webview.postMessage({
+    type: "focusSection",
+    section: "remote-control"
+  });
 }
 
 function createClient(): void {
@@ -799,10 +840,13 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function openSettingsPanel(context: vscode.ExtensionContext): void {
+function openSettingsPanel(
+  context: vscode.ExtensionContext,
+  focusRemoteControl = false
+): void {
   if (settingsPanel) {
     settingsPanel.reveal(vscode.ViewColumn.Active);
-    renderSettingsPanel();
+    renderSettingsPanel(focusRemoteControl);
     void refreshUsage();
     return;
   }
@@ -834,7 +878,7 @@ function openSettingsPanel(context: vscode.ExtensionContext): void {
     }
   });
 
-  renderSettingsPanel();
+  renderSettingsPanel(focusRemoteControl);
   void refreshUsage();
 }
 
@@ -913,7 +957,8 @@ async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknow
   }
 }
 
-function renderSettingsPanel(): void {
+function renderSettingsPanel(focusRemoteControl = false): void {
+  updateRemoteStatusItem();
   if (!settingsPanel) {
     return;
   }
@@ -924,6 +969,7 @@ function renderSettingsPanel(): void {
     settings,
     snapshot: latestSnapshot,
     errorMessage: latestUsageError,
+    focusRemoteControl,
     remoteControl: {
       supported: remoteControlSupported,
       busy: remoteControlBusy,
@@ -933,6 +979,31 @@ function renderSettingsPanel(): void {
       errorMessage: remoteControlError
     }
   });
+}
+
+function updateRemoteStatusItem(): void {
+  if (!remoteStatusItem) {
+    return;
+  }
+
+  const presentation = buildRemoteControlStatusBarPresentation({
+    supported: remoteControlSupported,
+    busy: remoteControlBusy,
+    status: remoteControlStatus?.status ?? null,
+    errorMessage: remoteControlError,
+    onboardingHighlighted: remoteControlOnboardingHighlighted
+  });
+
+  remoteStatusItem.text = presentation.text;
+  remoteStatusItem.tooltip = presentation.tooltip;
+  remoteStatusItem.accessibilityInformation = {
+    label: presentation.accessibilityLabel,
+    role: "button"
+  };
+  remoteStatusItem.backgroundColor = presentation.warning
+    ? new vscode.ThemeColor("statusBarItem.warningBackground")
+    : undefined;
+  remoteStatusItem.show();
 }
 
 function formatResetOutcome(outcome: string): string {

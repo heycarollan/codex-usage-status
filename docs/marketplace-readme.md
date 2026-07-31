@@ -15,12 +15,13 @@ Monitor Codex usage, receive completion alerts, return to exact chats, manage re
 - Open the exact completed local Codex chat, the general Codex sidebar, or no chat action.
 - Use the available reset credit nearest expiration after a modal confirmation.
 - Enable Codex's official Remote Control relay, create and copy a short-lived manual pairing code, inspect connection state, and revoke paired ChatGPT devices.
+- Open Remote setup directly from a persistent status-bar button beside usage, with one-time first-install guidance and no Command Palette step.
 
 ## Set up ChatGPT Remote
 
 Remote access is disabled by default.
 
-1. Run **Codex Companion: Set Up Remote Control** or click the Codex status display.
+1. Select the **Remote** button beside Codex usage in the status bar. On first install, Codex Companion highlights it and shows a one-time setup message.
 2. Select **Enable and create pairing code**.
 3. Open **Remote** in the ChatGPT mobile app and enter the displayed code.
 4. Keep the host computer awake, online, and running VS Code.

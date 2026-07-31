@@ -44,6 +44,7 @@ The extension talks to the local Codex app-server and reads:
 ## VS Code features
 
 - Status bar display: `Codex: 5h N/A · 7d 9%` when Codex reports only a 7-day window. A 5-hour percentage appears automatically when the API provides that window.
+- A dedicated **Remote** status-bar button beside usage. It shows connection state and opens the Remote Control section directly—no Command Palette step required.
 - Readable hover tooltip with separate usage windows, reset times, per-credit grant and expiration details, account, and token sections.
 - Unified Codex Companion editor with live account, token, bucket, and reset-credit details.
 - Manual refresh and app-server restart commands.
@@ -71,7 +72,7 @@ The settings editor includes a **Use reset credit** button with the available co
 
 ## Remote control
 
-Remote control is disabled by default. Open **Codex Companion**, turn on **Enable remote access**, and select **Create pairing code**. Copy the short-lived code into **Remote** in the ChatGPT mobile app. Once paired, ChatGPT provides the full Codex remote experience over OpenAI's internet relay: start or continue chats, send and steer instructions, answer questions, review outputs and diffs, and approve or reject requested actions.
+Remote control is disabled by default. After installation, Codex Companion shows one-time setup guidance and highlights the new **Remote** button beside the usage display. Select that button at any time to open the existing settings page directly at its Remote Control section. Turn on **Enable remote access**, select **Create pairing code**, and copy the short-lived code into **Remote** in the ChatGPT mobile app. Once paired, ChatGPT provides the full Codex remote experience over OpenAI's internet relay: start or continue chats, send and steer instructions, answer questions, review outputs and diffs, and approve or reject requested actions.
 
 The extension does not create a public listener, expose the raw app-server, or operate a separate relay. It calls Codex's experimental `remoteControl/*` app-server methods and shows only the local setup and device-management controls. Pairing codes stay in memory until claimed or expired and are never written to extension logs. Paired devices can be revoked individually.
 
