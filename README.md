@@ -3,9 +3,20 @@
 [![VS Code Marketplace](https://badgen.net/vs-marketplace/v/synapticraft.codex-usage-status)](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status)
 [![GitHub release](https://badgen.net/github/release/heycarollan/codex-usage-status)](https://github.com/heycarollan/codex-usage-status/releases/latest)
 
-Codex Companion makes Codex easier to monitor and reach: use the VS Code extension for usage, notifications, chat navigation, reset credits, and visual Remote setup, or use the official standalone Codex build as an always-available Linux Remote host without VS Code.
+Codex Companion makes Codex easier to monitor and reach: use the VS Code extension for one-minute Remote setup, usage, notifications, chat navigation, and reset credits, or use the official standalone Codex build as an always-available Linux Remote host without VS Code.
 
 ## Choose your setup
+
+### Fastest setup: VS Code on Linux, macOS, or Windows
+
+For most desktop users, the extension is the simplest route and requires no terminal configuration:
+
+1. Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status).
+2. Follow the one-time welcome message or select the highlighted **Remote** button beside Codex usage.
+3. Select **Enable and create pairing code**.
+4. Enter the code in **Remote** in the ChatGPT mobile app.
+
+When Remote is available for the account, this guided setup is designed to take about a minute. The same button returns directly to connection state, paired devices, removal, and setup controls later.
 
 ### Linux Remote Control without VS Code
 
@@ -32,7 +43,7 @@ The host must stay awake and online. The daemonized `start` command currently re
 
 See OpenAI's [Remote connections documentation](https://learn.chatgpt.com/docs/remote-connections) for account, mobile-app, workspace, and rollout requirements.
 
-### VS Code extension
+## How the VS Code extension works
 
 Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status), or search for `Codex Companion`, `Codex Usage`, or `Codex Remote Control` in the Extensions view.
 

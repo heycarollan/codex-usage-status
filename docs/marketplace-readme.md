@@ -1,9 +1,9 @@
-# Codex Companion: Usage & Remote
+# Codex Companion: Remote Control, Usage Status & Resets
 
 [![VS Code Marketplace](https://badgen.net/vs-marketplace/v/synapticraft.codex-usage-status)](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status)
 [![GitHub release](https://badgen.net/github/release/heycarollan/codex-usage-status)](https://github.com/heycarollan/codex-usage-status/releases/latest)
 
-Monitor Codex usage, receive completion alerts, return to exact chats, manage reset credits, and pair ChatGPT Remote from one VS Code settings page.
+Set up ChatGPT Remote in about a minute, monitor Codex usage, receive completion alerts, return to exact chats, and manage reset credits from one VS Code settings page.
 
 > **Linux without VS Code?** This project also documents the official standalone Codex Remote host. Use the [one-block Linux setup on GitHub](https://github.com/heycarollan/codex-usage-status#linux-remote-control-without-vs-code)—no VS Code extension or separate desktop controller is required.
 
@@ -20,6 +20,8 @@ Monitor Codex usage, receive completion alerts, return to exact chats, manage re
 ## Set up ChatGPT Remote
 
 Remote access is disabled by default.
+
+When ChatGPT Remote is available for the account, the guided flow is designed to take about a minute:
 
 1. Select the **Remote** button beside Codex usage in the status bar. On first install, Codex Companion highlights it and shows a one-time setup message.
 2. Select **Enable and create pairing code**.

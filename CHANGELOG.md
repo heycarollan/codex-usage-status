@@ -2,7 +2,7 @@
 
 ## 1.1.0
 
-- Rename the Marketplace display name to **Codex Companion: Usage & Remote** while preserving the existing `synapticraft.codex-usage-status` identifier and upgrade path.
+- Rename the Marketplace display name to **Codex Companion: Remote Control, Usage Status & Resets** while preserving the existing `synapticraft.codex-usage-status` identifier and upgrade path.
 - Add search metadata for Codex Remote Control, ChatGPT Remote, Linux, headless, mobile, usage, notifications, and reset credits.
 - Split documentation by audience: GitHub leads with an official standalone Linux Remote setup that does not require VS Code, while the packaged Marketplace README focuses on the extension and links to the Linux route.
 - Add opt-in ChatGPT Remote setup backed by Codex's official internet relay and experimental `remoteControl/*` app-server API.

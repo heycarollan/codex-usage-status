@@ -80,7 +80,7 @@ It listens only for `remoteControl/status/changed`. It does not accept remote re
 ## Product and documentation surfaces
 
 - The stable Marketplace identifier remains `synapticraft.codex-usage-status`, preserving installs, ratings, and update continuity.
-- The visible Marketplace name is **Codex Companion: Usage & Remote** so the title contains both the broader brand and high-intent feature terms.
+- The visible Marketplace name is **Codex Companion: Remote Control, Usage Status & Resets** so the title contains the broader brand and concrete high-intent feature terms without a vague "and more" suffix.
 - Manifest description and keywords cover Codex, remote control, ChatGPT Remote, Linux, headless, mobile, usage, completions, and reset credits. VS Code documents `displayName`, `description`, and keywords as search inputs.
 - The repository README serves both audiences and leads with a choice between Linux Remote and the extension.
 - `docs/marketplace-readme.md` is packaged as the Marketplace README. It stays extension-focused and links web visitors to the no-VS-Code Linux route.
