@@ -1,8 +1,20 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
-import { CodexAppServerClient, type CodexTurnCompletedEvent } from "./codexAppServerClient";
+import {
+  CodexAppServerClient,
+  type CodexThreadSnapshot,
+  type CodexTurnCompletedEvent
+} from "./codexAppServerClient";
+import {
+  formatChatCompletion,
+  getCompletionActionLabel,
+  isValidCodexThreadId,
+  getCompletionNotificationPlan
+} from "./chatNotifications";
 import { getSettings } from "./config";
-import { buildUsageQuickPickItems, formatStatus } from "./format";
+import { buildUnavailableStatusTooltip, formatStatus } from "./format";
+import { normalizeSettingUpdate, renderSettingsView } from "./settingsView";
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "./types";
 import { selectEarliestExpiringResetCredit, UsageService } from "./usageService";
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
@@ -12,12 +24,15 @@ const THREAD_COMPLETION_POLL_LIMIT = 8;
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
 let statusItem: vscode.StatusBarItem;
+let settingsPanel: vscode.WebviewPanel | null = null;
 let output: vscode.OutputChannel;
 let refreshTimer: NodeJS.Timeout | null = null;
 let latestSnapshot: NormalizedUsageSnapshot | null = null;
+let latestUsageError: string | null = null;
 let settings: ExtensionSettings;
 const notifiedTurns = new Set<string>();
 const notifiedInputRequests = new Set<string>();
+const recentThreads = new Map<string, CodexThreadSnapshot>();
 let activeUsageAlertKeys = new Set<string>();
 let threadCompletionPollBootstrapped = false;
 let threadCompletionPollInFlight = false;
@@ -27,7 +42,7 @@ let fallbackTurnNotificationSequence = 0;
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Usage Status");
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
-  statusItem.command = "codexUsage.showDetails";
+  statusItem.command = "codexUsage.openSettings";
   context.subscriptions.push(output, statusItem);
 
   settings = getSettings();
@@ -49,6 +64,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       schedulePolling();
+      renderSettingsPanel();
       void refreshUsage();
       void pollThreadCompletions();
     })
@@ -75,7 +91,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
       await refreshUsage(true);
     }),
     vscode.commands.registerCommand("codexUsage.showDetails", async () => {
-      await showDetails();
+      openSettingsPanel(context);
     }),
     vscode.commands.registerCommand("codexUsage.restartAppServer", async () => {
       await restartAppServer();
@@ -84,7 +100,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
       await resetUsage();
     }),
     vscode.commands.registerCommand("codexUsage.openSettings", async () => {
-      await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:thiscommonuser.codex-usage-status");
+      openSettingsPanel(context);
+    }),
+    vscode.commands.registerCommand("codexUsage.openLogs", () => {
+      output.show();
     })
   );
 }
@@ -110,13 +129,11 @@ function createClient(): void {
       notifiedInputRequests.add(key);
 
       const message = event.detail ? `${event.title}: ${event.detail}` : event.title;
-      void showNotification("warning", "Codex needs input", message, ["Open Codex", "Show Usage"], true).then((action) => {
-        if (action === "Open Codex") {
-          void vscode.commands.executeCommand("chatgpt.openSidebar");
-        } else if (action === "Show Usage") {
-          void showDetails();
-        }
-      });
+      void showNotification(
+        "warning",
+        "Codex needs input",
+        message
+      );
     }
   });
   usageService = new UsageService(client);
@@ -144,6 +161,7 @@ async function refreshUsage(showToast = false): Promise<void> {
 
   try {
     latestSnapshot = await usageService!.readUsage();
+    latestUsageError = null;
     const presentation = formatStatus(latestSnapshot, settings);
     statusItem.text = presentation.text;
     statusItem.tooltip = presentation.tooltip;
@@ -160,11 +178,13 @@ async function refreshUsage(showToast = false): Promise<void> {
     }
 
     notifyUsageWarnings(latestSnapshot);
+    renderSettingsPanel();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    latestUsageError = message;
     output.appendLine(`Refresh failed: ${message}`);
     statusItem.text = "$(warning) Codex usage unavailable";
-    statusItem.tooltip = `Codex Usage Status could not read account usage.\n\n${message}`;
+    statusItem.tooltip = buildUnavailableStatusTooltip(message);
     statusItem.color = new vscode.ThemeColor("statusBarItem.errorForeground");
     statusItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
     statusItem.accessibilityInformation = {
@@ -185,6 +205,8 @@ async function refreshUsage(showToast = false): Promise<void> {
         await restartAppServer();
       }
     }
+
+    renderSettingsPanel();
   }
 }
 
@@ -203,7 +225,17 @@ async function pollThreadCompletions(): Promise<void> {
 
   try {
     const threadSummaries = await client.listRecentThreads(THREAD_COMPLETION_POLL_LIMIT);
+    recentThreads.clear();
+
     for (const summary of threadSummaries) {
+      recentThreads.set(summary.id, summary);
+    }
+
+    for (const summary of threadSummaries) {
+      if (summary.source && summary.source !== "vscode") {
+        continue;
+      }
+
       const thread = await client.readThread(summary.id);
       if (!thread) {
         continue;
@@ -220,7 +252,11 @@ async function pollThreadCompletions(): Promise<void> {
             turnId: turn.id,
             status: turn.status,
             durationMs: turn.durationMs,
-            completedAt: turn.completedAt
+            completedAt: turn.completedAt,
+            threadName: summary.name,
+            cwd: summary.cwd,
+            gitBranch: summary.gitBranch,
+            source: summary.source
           },
           shouldNotify
         );
@@ -255,19 +291,19 @@ function notifyTurnCompleted(event: CodexTurnCompletedEvent, showToast = true): 
     return;
   }
 
-  const status = event.status ? ` (${event.status})` : "";
-  const duration = typeof event.durationMs === "number" ? ` in ${formatDuration(event.durationMs)}` : "";
-  void showNotification(
-    "info",
-    "Codex chat complete",
-    `Codex chat complete${status}${duration}.`,
-    ["Show Usage"],
-    true
-  ).then((action) => {
-    if (action === "Show Usage") {
-      void showDetails();
-    }
-  });
+  const summary = recentThreads.get(event.threadId);
+  const enrichedEvent: CodexTurnCompletedEvent = {
+    ...event,
+    threadName: event.threadName ?? summary?.name ?? null,
+    cwd: event.cwd ?? summary?.cwd ?? null,
+    gitBranch: event.gitBranch ?? summary?.gitBranch ?? null,
+    source: event.source ?? summary?.source ?? null
+  };
+  const presentation = formatChatCompletion(
+    enrichedEvent,
+    typeof event.durationMs === "number" ? formatDuration(event.durationMs) : null
+  );
+  void showCompletionNotification("Codex chat complete", presentation.message, event.threadId);
 }
 
 function getTurnNotificationKey(event: CodexTurnCompletedEvent): string {
@@ -296,66 +332,32 @@ function notifyUsageWarnings(snapshot: NormalizedUsageSnapshot): void {
     return;
   }
 
-  void showUsageAlert(evaluation.alerts, snapshot);
+  void showUsageAlert(evaluation.alerts);
 }
 
-async function showUsageAlert(alerts: UsageAlert[], snapshot: NormalizedUsageSnapshot): Promise<void> {
-  const actions = ["Show Usage"];
-  if ((snapshot.resetCredits?.availableCount ?? 0) > 0) {
-    actions.push("Use Reset Credit");
-  }
-
-  const action = await showNotification(
+async function showUsageAlert(alerts: UsageAlert[]): Promise<void> {
+  await showNotification(
     "warning",
     alerts.some((alert) => alert.kind === "limit") ? "Codex usage limit reached" : "Codex usage warning",
-    formatUsageAlertMessage(alerts),
-    actions,
-    true
+    formatUsageAlertMessage(alerts)
   );
-
-  if (action === "Show Usage") {
-    await showDetails();
-  } else if (action === "Use Reset Credit") {
-    await resetUsage();
-  }
-}
-
-async function showDetails(): Promise<void> {
-  if (!latestSnapshot) {
-    await refreshUsage(true);
-  }
-
-  if (!latestSnapshot) {
-    return;
-  }
-
-  const action = await vscode.window.showQuickPick(buildUsageQuickPickItems(latestSnapshot, settings), {
-    title: "Codex Usage",
-    placeHolder: "Select an action, or inspect a usage bucket.",
-    matchOnDescription: true,
-    matchOnDetail: true
-  });
-
-  if (action?.action === "refresh") {
-    await refreshUsage(true);
-  } else if (action?.action === "openLogs") {
-    output.show();
-  } else if (action?.action === "resetUsage") {
-    await resetUsage();
-  }
 }
 
 async function restartAppServer(): Promise<void> {
   statusItem.text = "$(sync~spin) Codex restarting...";
   latestSnapshot = null;
+  latestUsageError = null;
+  renderSettingsPanel();
 
   try {
     await client?.restart();
     await refreshUsage(true);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    latestUsageError = message;
     output.appendLine(`Restart failed: ${message}`);
     vscode.window.showErrorMessage(`Codex app-server restart failed: ${message}`);
+    renderSettingsPanel();
   }
 }
 
@@ -367,6 +369,7 @@ async function resetUsage(): Promise<void> {
   const availableCount = latestSnapshot?.resetCredits?.availableCount ?? 0;
   if (availableCount <= 0) {
     vscode.window.showInformationMessage("Codex reported no reset credits available.");
+    renderSettingsPanel();
     return;
   }
 
@@ -384,6 +387,7 @@ async function resetUsage(): Promise<void> {
   );
 
   if (confirmation !== "Use Reset Credit") {
+    renderSettingsPanel();
     return;
   }
 
@@ -398,7 +402,120 @@ async function resetUsage(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Reset credit failed: ${message}`);
     vscode.window.showErrorMessage(`Could not use Codex reset credit: ${message}`);
+    renderSettingsPanel();
   }
+}
+
+function openSettingsPanel(context: vscode.ExtensionContext): void {
+  if (settingsPanel) {
+    settingsPanel.reveal(vscode.ViewColumn.Active);
+    renderSettingsPanel();
+    void refreshUsage();
+    return;
+  }
+
+  const panel = vscode.window.createWebviewPanel(
+    "codexUsage.settings",
+    "Codex Usage Settings",
+    vscode.ViewColumn.Active,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true
+    }
+  );
+  settingsPanel = panel;
+  context.subscriptions.push(panel);
+
+  const panelDisposables: vscode.Disposable[] = [];
+  panel.webview.onDidReceiveMessage(
+    async (message: unknown) => {
+      await handleSettingsMessage(panel, message);
+    },
+    undefined,
+    panelDisposables
+  );
+  panel.onDidDispose(() => {
+    settingsPanel = null;
+    for (const disposable of panelDisposables) {
+      disposable.dispose();
+    }
+  });
+
+  renderSettingsPanel();
+  void refreshUsage();
+}
+
+async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknown): Promise<void> {
+  if (!message || typeof message !== "object") {
+    return;
+  }
+
+  const payload = message as {
+    type?: unknown;
+    command?: unknown;
+    key?: unknown;
+    value?: unknown;
+  };
+
+  if (payload.type === "command") {
+    switch (payload.command) {
+      case "refresh":
+        await refreshUsage();
+        return;
+      case "restart":
+        await restartAppServer();
+        return;
+      case "logs":
+        output.show();
+        return;
+      case "reset":
+        await resetUsage();
+        return;
+      default:
+        return;
+    }
+  }
+
+  if (payload.type !== "updateSetting") {
+    return;
+  }
+
+  const update = normalizeSettingUpdate(payload.key, payload.value);
+  if (!update) {
+    await panel.webview.postMessage({
+      type: "settingError",
+      message: "That setting value is invalid."
+    });
+    return;
+  }
+
+  try {
+    await vscode.workspace
+      .getConfiguration("codexUsage")
+      .update(update.key, update.value, vscode.ConfigurationTarget.Global);
+    await panel.webview.postMessage({ type: "settingSaved" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Setting update failed: ${message}`);
+    await panel.webview.postMessage({
+      type: "settingError",
+      message: "Setting could not be saved."
+    });
+  }
+}
+
+function renderSettingsPanel(): void {
+  if (!settingsPanel) {
+    return;
+  }
+
+  settingsPanel.webview.html = renderSettingsView({
+    cspSource: settingsPanel.webview.cspSource,
+    nonce: randomBytes(18).toString("base64"),
+    settings,
+    snapshot: latestSnapshot,
+    errorMessage: latestUsageError
+  });
 }
 
 function formatResetOutcome(outcome: string): string {
@@ -432,29 +549,150 @@ async function showNotification(
   kind: "info" | "warning",
   title: string,
   message: string,
-  actions: string[] = [],
-  alwaysShowActions = false
-): Promise<string | undefined> {
+): Promise<void> {
   const wantsNative = settings.notificationMode === "native" || settings.notificationMode === "both";
   const nativeDelivered = wantsNative ? await showNativeNotification(kind, title, message) : false;
   const wantsVscode =
     settings.notificationMode === "vscode" ||
     settings.notificationMode === "both" ||
-    !nativeDelivered ||
-    (alwaysShowActions && actions.length > 0);
+    !nativeDelivered;
 
-  if (!wantsVscode) {
-    return undefined;
+  if (wantsVscode) {
+    await showVscodeNotification(kind, message);
   }
-
-  if (kind === "warning") {
-    return vscode.window.showWarningMessage(message, ...actions);
-  }
-
-  return vscode.window.showInformationMessage(message, ...actions);
 }
 
-function showNativeNotification(kind: "info" | "warning", title: string, message: string): Promise<boolean> {
+function showVscodeNotification(
+  kind: "info" | "warning",
+  message: string,
+): Thenable<string | undefined> {
+  if (kind === "warning") {
+    return vscode.window.showWarningMessage(message);
+  }
+
+  return vscode.window.showInformationMessage(message);
+}
+
+async function showCompletionNotification(title: string, message: string, threadId: string): Promise<void> {
+  const plan = getCompletionNotificationPlan(vscode.window.state.focused, settings.notificationMode);
+  const actionLabel = getCompletionActionLabel(settings.completionChatAction);
+  const nativeDelivered = plan.native
+    ? await showNativeCompletionNotification(title, message, actionLabel, threadId)
+    : false;
+
+  if (plan.vscode || (plan.native && !nativeDelivered)) {
+    const selection = actionLabel
+      ? await vscode.window.showInformationMessage(message, actionLabel)
+      : await vscode.window.showInformationMessage(message);
+    if (selection === actionLabel) {
+      await openCompletedChat(threadId);
+    }
+  }
+}
+
+async function openCompletedChat(threadId: string): Promise<void> {
+  if (settings.completionChatAction === "none") {
+    return;
+  }
+
+  if (settings.completionChatAction === "sidebar" || !isValidCodexThreadId(threadId)) {
+    await openCodexSidebar();
+    return;
+  }
+
+  try {
+    const codexExtension = vscode.extensions.getExtension("openai.chatgpt");
+    if (!codexExtension) {
+      throw new Error("The OpenAI Codex extension is not installed.");
+    }
+    await codexExtension.activate();
+    const resource = vscode.Uri.from({
+      scheme: "openai-codex",
+      authority: "route",
+      path: `/local/${threadId}`
+    });
+    await vscode.commands.executeCommand("vscode.open", resource, {
+      preview: false,
+      preserveFocus: false
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Exact chat navigation failed: ${message}`);
+    vscode.window.showWarningMessage(
+      "The exact Codex chat could not be opened. Opening the Codex sidebar instead."
+    );
+    await openCodexSidebar();
+  }
+}
+
+async function openCodexSidebar(): Promise<void> {
+  try {
+    await vscode.commands.executeCommand("chatgpt.openSidebar");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Codex sidebar navigation failed: ${message}`);
+    vscode.window.showWarningMessage("Could not open the Codex sidebar. Is the OpenAI Codex extension installed?");
+  }
+}
+
+function showNativeCompletionNotification(
+  title: string,
+  message: string,
+  actionLabel: string | null,
+  threadId: string
+): Promise<boolean> {
+  if (process.platform !== "linux") {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const args = [
+      "--app-name=Codex Usage Status",
+      "--icon=code",
+      "--urgency=normal"
+    ];
+    if (actionLabel) {
+      args.push(`--action=default=${actionLabel}`);
+    }
+    args.push(title, message);
+
+    const proc = spawn("notify-send", args, {
+      stdio: ["ignore", actionLabel ? "pipe" : "ignore", "ignore"],
+      detached: true
+    });
+
+    proc.once("spawn", () => {
+      settled = true;
+      resolve(true);
+    });
+    proc.once("error", (error) => {
+      output.appendLine(`Native completion notification failed: ${error.message}`);
+      if (!settled) {
+        settled = true;
+        resolve(false);
+      }
+    });
+    proc.once("exit", (code) => {
+      if (code !== 0) {
+        output.appendLine(`Native completion notification failed with exit code ${code ?? "unknown"}.`);
+      }
+    });
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      if (chunk.toString().trim() === "default") {
+        void openCompletedChat(threadId);
+      }
+    });
+
+    proc.unref();
+  });
+}
+
+function showNativeNotification(
+  kind: "info" | "warning",
+  title: string,
+  message: string
+): Promise<boolean> {
   if (process.platform !== "linux") {
     return Promise.resolve(false);
   }

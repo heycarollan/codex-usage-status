@@ -13,7 +13,8 @@ const settings: ExtensionSettings = {
   notifyUsageWarnings: true,
   notifyTurnComplete: true,
   notifyNeedsInput: true,
-  notificationMode: "native"
+  notificationMode: "vscode",
+  completionChatAction: "exact"
 };
 
 test("formats missing windows as N/A", () => {

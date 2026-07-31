@@ -1,16 +1,11 @@
 import * as vscode from "vscode";
 import {
-  formatBucketSummary,
-  formatDetails,
   formatInteger,
-  formatRecentDailyUsage,
   formatRecentTokenTotal,
   formatResetCreditExpiry,
-  formatResetCreditsDetails,
   formatResetCreditType,
   formatResetShort,
   formatResetTime,
-  formatWindowLine,
   formatWindowPercent,
   formatWindowRemaining
 } from "./formatCore";
@@ -32,10 +27,6 @@ export interface StatusPresentation {
   accessibilityLabel: string;
 }
 
-export interface UsageQuickPickItem extends vscode.QuickPickItem {
-  action?: "refresh" | "openLogs" | "resetUsage";
-}
-
 export function formatStatus(snapshot: NormalizedUsageSnapshot, settings: ExtensionSettings): StatusPresentation {
   const fiveHour = snapshot.codex.fiveHour;
   const sevenDay = snapshot.codex.sevenDay;
@@ -47,7 +38,7 @@ export function formatStatus(snapshot: NormalizedUsageSnapshot, settings: Extens
   const overLimit = (fiveHour?.usedPercent ?? 0) >= 100 || (sevenDay?.usedPercent ?? 0) >= 100;
 
   return {
-    text: `$(pulse) Codex: 5h ${fiveText} · 7d ${sevenText}`,
+    text: `Codex: 5h ${fiveText} · 7d ${sevenText}`,
     tooltip: buildTooltip(snapshot, settings),
     color: overWarning ? new vscode.ThemeColor("statusBarItem.warningForeground") : undefined,
     backgroundColor: overLimit
@@ -59,82 +50,16 @@ export function formatStatus(snapshot: NormalizedUsageSnapshot, settings: Extens
   };
 }
 
-export function buildUsageQuickPickItems(
-  snapshot: NormalizedUsageSnapshot,
-  settings: ExtensionSettings
-): UsageQuickPickItem[] {
-  const buckets = settings.showExtraBuckets ? snapshot.buckets : [snapshot.codex];
-  const items: UsageQuickPickItem[] = [];
-
-  items.push({
-    label: "$(graph) Account Summary",
-    description: snapshot.codex.planType ? `Plan: ${snapshot.codex.planType}` : undefined,
-    detail: [
-      formatResetCreditsDetails(snapshot.resetCredits),
-      snapshot.codex.credits
-        ? `Credits: ${snapshot.codex.credits.unlimited ? "unlimited" : snapshot.codex.credits.balance ?? "unknown"}`
-        : null,
-      snapshot.tokenUsage?.summary
-        ? `Lifetime tokens: ${formatInteger(snapshot.tokenUsage.summary.lifetimeTokens)}`
-        : null,
-      snapshot.tokenUsage?.summary
-        ? `Peak daily tokens: ${formatInteger(snapshot.tokenUsage.summary.peakDailyTokens)}`
-        : null,
-      snapshot.tokenUsage?.summary
-        ? `Current streak: ${formatInteger(snapshot.tokenUsage.summary.currentStreakDays)} days`
-        : null,
-      snapshot.tokenUsage?.dailyUsageBuckets
-        ? `Last 7 days tokens: ${formatRecentTokenTotal(snapshot.tokenUsage.dailyUsageBuckets)}`
-        : null,
-      snapshot.tokenUsage?.dailyUsageBuckets
-        ? `Recent daily tokens:\n${formatRecentDailyUsage(snapshot.tokenUsage.dailyUsageBuckets)}`
-        : null,
-      `Last refreshed: ${snapshot.fetchedAt.toLocaleString()}`
-    ].filter((item): item is string => Boolean(item)).join("\n")
-  });
-
-  for (const bucket of buckets) {
-    items.push({
-      label: bucket.isPrimaryCodex ? "$(pulse) Codex" : `$(symbol-misc) ${bucket.name}`,
-      description: formatBucketSummary(bucket),
-      detail: formatBucketDetail(bucket)
-    });
-  }
-
-  if ((snapshot.resetCredits?.availableCount ?? 0) > 0) {
-    items.push({
-      label: "$(debug-restart) Use Reset Credit",
-      description: `${snapshot.resetCredits?.availableCount} available`,
-      detail: "Reset your current Codex rate-limit window. This asks for confirmation before consuming a credit.",
-      action: "resetUsage"
-    });
-  } else {
-    items.push({
-      label: "$(debug-restart) Use Reset Credit",
-      description: "No reset credits available",
-      detail: "Codex reported no reset credits for this account."
-    });
-  }
-
-  items.push({
-    label: "$(sync) Refresh",
-    description: "Read Codex usage again",
-    action: "refresh"
-  });
-
-  items.push({
-    label: "$(output) Open Logs",
-    description: "Show the Codex Usage Status output channel",
-    action: "openLogs"
-  });
-
-  return items;
+export function buildUnavailableStatusTooltip(message: string): vscode.MarkdownString {
+  const tooltip = createTrustedTooltip();
+  tooltip.appendMarkdown("### Codex Usage Unavailable\n\n");
+  tooltip.appendText(message);
+  appendSettingsAction(tooltip);
+  return tooltip;
 }
 
 function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSettings): vscode.MarkdownString {
-  const tooltip = new vscode.MarkdownString(undefined, true);
-  tooltip.isTrusted = false;
-  tooltip.supportHtml = false;
+  const tooltip = createTrustedTooltip();
   tooltip.appendMarkdown("### Codex Usage\n\n");
   tooltip.appendMarkdown(formatBucketMarkdown(snapshot.codex, true));
 
@@ -180,7 +105,21 @@ function buildTooltip(snapshot: NormalizedUsageSnapshot, settings: ExtensionSett
   }
 
   tooltip.appendMarkdown(`\n\n_Last refreshed ${snapshot.fetchedAt.toLocaleString()}_`);
+  appendSettingsAction(tooltip);
   return tooltip;
+}
+
+function createTrustedTooltip(): vscode.MarkdownString {
+  const tooltip = new vscode.MarkdownString(undefined, true);
+  tooltip.isTrusted = {
+    enabledCommands: ["codexUsage.openSettings"]
+  };
+  tooltip.supportHtml = false;
+  return tooltip;
+}
+
+function appendSettingsAction(tooltip: vscode.MarkdownString): void {
+  tooltip.appendMarkdown("\n\n---\n\n[$(settings-gear) Open Settings](command:codexUsage.openSettings)");
 }
 
 function formatBucketMarkdown(bucket: NormalizedUsageBucket, primary: boolean): string {
@@ -192,24 +131,6 @@ function formatBucketMarkdown(bucket: NormalizedUsageBucket, primary: boolean): 
     `| 5 hours | \`${formatWindowPercent(bucket.fiveHour)}\` | ${formatResetCell(bucket.fiveHour)} |`,
     `| 7 days | \`${formatWindowPercent(bucket.sevenDay)}\` | ${formatResetCell(bucket.sevenDay)} |`
   ];
-
-  return lines.join("\n");
-}
-
-function formatBucketDetail(bucket: NormalizedUsageBucket): string {
-  const lines = [
-    `5-hour: ${formatWindowLine(bucket.fiveHour)}`,
-    `7-day: ${formatWindowLine(bucket.sevenDay)}`
-  ];
-
-  if (bucket.planType) {
-    lines.push(`Plan: ${bucket.planType}`);
-  }
-
-  if (bucket.credits) {
-    const balance = bucket.credits.unlimited ? "unlimited" : bucket.credits.balance ?? "unknown";
-    lines.push(`Credits: ${balance}`);
-  }
 
   return lines.join("\n");
 }

@@ -30,6 +30,10 @@ export interface CodexTurnCompletedEvent {
   status: string | null;
   durationMs: number | null;
   completedAt: number | null;
+  threadName?: string | null;
+  cwd?: string | null;
+  gitBranch?: string | null;
+  source?: string | null;
 }
 
 export interface CodexTurnSnapshot {
@@ -42,6 +46,10 @@ export interface CodexTurnSnapshot {
 export interface CodexThreadSnapshot {
   id: string;
   turns: CodexTurnSnapshot[];
+  name: string | null;
+  cwd: string | null;
+  gitBranch: string | null;
+  source: string | null;
 }
 
 export interface CodexNeedsUserInputEvent {
@@ -103,7 +111,14 @@ export class CodexAppServerClient {
     const turns = Array.isArray(response.data)
       ? response.data.map(parseTurnSnapshot).filter((turn): turn is CodexTurnSnapshot => turn !== null)
       : [];
-    return { id: threadId, turns };
+    return {
+      id: threadId,
+      turns,
+      name: null,
+      cwd: null,
+      gitBranch: null,
+      source: null
+    };
   }
 
   async restart(): Promise<void> {
@@ -138,7 +153,7 @@ export class CodexAppServerClient {
       clientInfo: {
         name: "codex_usage_status_vscode",
         title: "Codex Usage Status",
-        version: "0.1.1"
+        version: "1.0.0"
       },
       capabilities: {
         experimentalApi: true
@@ -349,8 +364,16 @@ export function parseThreadSnapshot(value: unknown): CodexThreadSnapshot | null 
   const turns = Array.isArray(thread.turns)
     ? thread.turns.map(parseTurnSnapshot).filter((turn): turn is CodexTurnSnapshot => turn !== null)
     : [];
+  const gitInfo = asRecord(thread.gitInfo ?? thread.git_info);
 
-  return { id, turns };
+  return {
+    id,
+    turns,
+    name: firstString(thread.name, thread.title),
+    cwd: firstString(thread.cwd),
+    gitBranch: firstString(gitInfo.branch, thread.gitBranch, thread.git_branch),
+    source: firstString(thread.source)
+  };
 }
 
 function parseTurnSnapshot(value: unknown): CodexTurnSnapshot | null {

@@ -1,8 +1,8 @@
 {
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
-  "description": "Track Codex usage windows, reset timing, and reset-credit expiration details from VS Code.",
-  "version": "0.1.7",
+  "description": "Track Codex usage and reset credits, get completion alerts, and jump back to completed chats from VS Code.",
+  "version": "1.0.0",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -12,12 +12,14 @@
   "keywords": [
     "codex",
     "openai",
-    "usage",
+    "codex notifier",
+    "completion notification",
+    "chat switch",
+    "usage tracker",
     "rate limit",
     "reset credits",
     "quota",
     "status bar",
-    "notifications",
     "synapticraft"
   ],
   "icon": "assets/synapticraft-icon.png",
@@ -43,10 +45,10 @@
   "activationEvents": [
     "onStartupFinished",
     "onCommand:codexUsage.refresh",
-    "onCommand:codexUsage.showDetails",
     "onCommand:codexUsage.restartAppServer",
     "onCommand:codexUsage.resetUsage",
-    "onCommand:codexUsage.openSettings"
+    "onCommand:codexUsage.openSettings",
+    "onCommand:codexUsage.openLogs"
   ],
   "main": "./dist/src/extension.js",
   "contributes": {
@@ -54,10 +56,6 @@
       {
         "command": "codexUsage.refresh",
         "title": "Codex Usage: Refresh"
-      },
-      {
-        "command": "codexUsage.showDetails",
-        "title": "Codex Usage: Show Details"
       },
       {
         "command": "codexUsage.restartAppServer",
@@ -70,6 +68,10 @@
       {
         "command": "codexUsage.openSettings",
         "title": "Codex Usage: Open Settings"
+      },
+      {
+        "command": "codexUsage.openLogs",
+        "title": "Codex Usage: Open Logs"
       }
     ],
     "configuration": {
@@ -89,7 +91,7 @@
         "codexUsage.showExtraBuckets": {
           "type": "boolean",
           "default": true,
-          "description": "Show model-specific Codex usage buckets in the details tooltip and command."
+          "description": "Show model-specific Codex usage buckets in the tooltip and Codex Usage Settings."
         },
         "codexUsage.statusFormat": {
           "type": "string",
@@ -116,12 +118,12 @@
         "codexUsage.notifyUsageWarnings": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications when Codex 5-hour or 7-day usage crosses the warning threshold."
+          "description": "Notify when Codex 5-hour or 7-day usage crosses the warning threshold."
         },
         "codexUsage.notifyTurnComplete": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications for Codex turn completion events visible to this app-server connection."
+          "description": "Notify for visible Codex turn completions, including the available chat, project, and branch identity."
         },
         "codexUsage.notifyNeedsInput": {
           "type": "boolean",
@@ -135,8 +137,28 @@
             "vscode",
             "both"
           ],
-          "default": "native",
-          "description": "Controls notification delivery. Native uses Linux desktop notifications through notify-send and falls back to VS Code when unavailable."
+          "enumDescriptions": [
+            "Use Linux desktop notifications when available, with VS Code as a fallback.",
+            "Use VS Code notifications.",
+            "Use both Linux desktop and VS Code notifications when VS Code is unfocused."
+          ],
+          "default": "vscode",
+          "description": "Controls how Codex Usage Status delivers notifications."
+        },
+        "codexUsage.completionChatAction": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "sidebar",
+            "none"
+          ],
+          "enumDescriptions": [
+            "Open the completed chat using the OpenAI extension's current thread resource. Experimental because this resource is not a documented public API.",
+            "Open the general Codex sidebar.",
+            "Show no chat-opening action."
+          ],
+          "default": "exact",
+          "description": "Controls what completion-notification actions open."
         }
       }
     }
@@ -145,7 +167,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-0.1.7.vsix",
+    "package": "vsce package --out dist/codex-usage-status-1.0.0.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
