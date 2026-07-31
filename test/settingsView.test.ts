@@ -13,7 +13,8 @@ const settings: ExtensionSettings = {
   notifyUsageWarnings: true,
   notifyTurnComplete: true,
   notifyNeedsInput: true,
-  notificationMode: "vscode"
+  notificationMode: "vscode",
+  completionChatAction: "exact"
 };
 
 const snapshot: NormalizedUsageSnapshot = {
@@ -112,7 +113,8 @@ test("renders usage, reset details, actions, and every configurable setting", ()
     "notifyUsageWarnings",
     "notifyTurnComplete",
     "notifyNeedsInput",
-    "notificationMode"
+    "notificationMode",
+    "completionChatAction"
   ]) {
     assert.match(html, new RegExp(`data-setting="${key}"`));
   }
@@ -164,6 +166,10 @@ test("validates settings messages before updating VS Code configuration", () => 
     { key: "notifyTurnComplete", value: false }
   );
   assert.deepEqual(
+    normalizeSettingUpdate("completionChatAction", "sidebar"),
+    { key: "completionChatAction", value: "sidebar" }
+  );
+  assert.deepEqual(
     normalizeSettingUpdate("codexExecutable", "  /usr/bin/codex  "),
     { key: "codexExecutable", value: "/usr/bin/codex" }
   );
@@ -171,5 +177,6 @@ test("validates settings messages before updating VS Code configuration", () => 
   assert.equal(normalizeSettingUpdate("warnAtPercent", 101), null);
   assert.equal(normalizeSettingUpdate("refreshIntervalSeconds", 4), null);
   assert.equal(normalizeSettingUpdate("notificationMode", "desktop"), null);
+  assert.equal(normalizeSettingUpdate("completionChatAction", "private"), null);
   assert.equal(normalizeSettingUpdate("unknownSetting", true), null);
 });

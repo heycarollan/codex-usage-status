@@ -52,6 +52,10 @@ export function normalizeSettingUpdate(key: unknown, value: unknown): Normalized
       return value === "native" || value === "vscode" || value === "both"
         ? { key, value }
         : null;
+    case "completionChatAction":
+      return value === "exact" || value === "sidebar" || value === "none"
+        ? { key, value }
+        : null;
     default:
       return null;
   }
@@ -290,6 +294,17 @@ export function renderSettingsView(state: SettingsViewState): string {
               ["both", "Both"]
             ],
             "Choose where notifications appear."
+          )}
+          ${renderSelectSetting(
+            "completionChatAction",
+            "Completion action",
+            settings.completionChatAction,
+            [
+              ["exact", "Exact chat (experimental)"],
+              ["sidebar", "Codex sidebar"],
+              ["none", "No action"]
+            ],
+            "Controls what notification clicks open. Exact chat uses the OpenAI extension's current thread resource, which is not yet a documented public API."
           )}
         </div>
         <div class="card">

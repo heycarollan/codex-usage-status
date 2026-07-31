@@ -14,6 +14,7 @@ export function getSettings(): ExtensionSettings {
     notifyUsageWarnings: config.get("notifyUsageWarnings", true),
     notifyTurnComplete: config.get("notifyTurnComplete", true),
     notifyNeedsInput: config.get("notifyNeedsInput", true),
-    notificationMode: config.get("notificationMode", "vscode")
+    notificationMode: config.get("notificationMode", "vscode"),
+    completionChatAction: config.get("completionChatAction", "exact")
   };
 }

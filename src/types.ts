@@ -138,4 +138,5 @@ export interface ExtensionSettings {
   notifyTurnComplete: boolean;
   notifyNeedsInput: boolean;
   notificationMode: "native" | "vscode" | "both";
+  completionChatAction: "exact" | "sidebar" | "none";
 }

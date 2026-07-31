@@ -12,6 +12,23 @@ export interface CompletionNotificationPlan {
   vscode: boolean;
 }
 
+export function getCompletionActionLabel(
+  mode: ExtensionSettings["completionChatAction"]
+): string | null {
+  switch (mode) {
+    case "exact":
+      return "Go to Chat";
+    case "sidebar":
+      return "Open Codex";
+    case "none":
+      return null;
+  }
+}
+
+export function isValidCodexThreadId(threadId: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(threadId) && threadId !== "unknown";
+}
+
 export function getCompletionNotificationPlan(
   windowFocused: boolean,
   mode: ExtensionSettings["notificationMode"]

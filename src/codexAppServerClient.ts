@@ -153,7 +153,7 @@ export class CodexAppServerClient {
       clientInfo: {
         name: "codex_usage_status_vscode",
         title: "Codex Usage Status",
-        version: "0.1.1"
+        version: "1.0.0"
       },
       capabilities: {
         experimentalApi: true

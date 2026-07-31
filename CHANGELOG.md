@@ -1,12 +1,13 @@
 # Changelog
 
-## 0.1.8
+## 1.0.0
 
-- Remove unreliable exact-chat notification actions that depended on the official Codex extension's undocumented private route.
+- Restore **Go to Chat** with the local conversation-editor resource registered by the current OpenAI extension, replacing the previously unsuccessful external URI route.
+- Add completion-action settings for exact local chat (experimental), the supported general Codex sidebar, or no action.
 - Make VS Code notifications the default and honor the configured VS Code, native Linux, or combined notification mode without duplicate action toasts.
 - Replace the status-bar Quick Pick with a unified settings editor containing every extension preference plus live usage, account, token, bucket, and reset-credit details.
 - Add Refresh, Restart Server, Open Logs, and guarded Use Reset Credit buttons to the settings editor with concise reset-credit descriptions.
-- Open the same settings editor from the usage display, dedicated pulse button, and tooltip action.
+- Remove the separate pulse button and open the settings editor from the usage display or tooltip action.
 - Keep refresh, reset-credit use, app-server restart, settings, and logs available as explicit Command Palette commands.
 
 ## 0.1.7
@@ -33,7 +34,7 @@
 
 ## 0.1.3
 
-- Clarify that reset credits can be viewed and used from VS Code, not just displayed.
+- Clarify that reset credits can be viewed and used directly from VS Code.
 - Update Marketplace description keywords around reset credits and quota monitoring.
 
 ## 0.1.2

@@ -1,8 +1,8 @@
 {
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
-  "description": "Track Codex usage windows, reset timing, and reset-credit expiration details from VS Code.",
-  "version": "0.1.8",
+  "description": "Track Codex usage and reset credits, get completion alerts, and jump back to completed chats from VS Code.",
+  "version": "1.0.0",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -12,12 +12,14 @@
   "keywords": [
     "codex",
     "openai",
-    "usage",
+    "codex notifier",
+    "completion notification",
+    "chat switch",
+    "usage tracker",
     "rate limit",
     "reset credits",
     "quota",
     "status bar",
-    "notifications",
     "synapticraft"
   ],
   "icon": "assets/synapticraft-icon.png",
@@ -141,7 +143,22 @@
             "Use both Linux desktop and VS Code notifications when VS Code is unfocused."
           ],
           "default": "vscode",
-          "description": "Controls how Codex Usage Status delivers notifications. Exact-chat actions are not offered because the official Codex extension has no documented public navigation API."
+          "description": "Controls how Codex Usage Status delivers notifications."
+        },
+        "codexUsage.completionChatAction": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "sidebar",
+            "none"
+          ],
+          "enumDescriptions": [
+            "Open the completed chat using the OpenAI extension's current thread resource. Experimental because this resource is not a documented public API.",
+            "Open the general Codex sidebar.",
+            "Show no chat-opening action."
+          ],
+          "default": "exact",
+          "description": "Controls what completion-notification actions open."
         }
       }
     }
@@ -150,7 +167,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-0.1.8.vsix",
+    "package": "vsce package --out dist/codex-usage-status-1.0.0.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

@@ -8,6 +8,8 @@ import {
 } from "./codexAppServerClient";
 import {
   formatChatCompletion,
+  getCompletionActionLabel,
+  isValidCodexThreadId,
   getCompletionNotificationPlan
 } from "./chatNotifications";
 import { getSettings } from "./config";
@@ -22,7 +24,6 @@ const THREAD_COMPLETION_POLL_LIMIT = 8;
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
 let statusItem: vscode.StatusBarItem;
-let settingsItem: vscode.StatusBarItem;
 let settingsPanel: vscode.WebviewPanel | null = null;
 let output: vscode.OutputChannel;
 let refreshTimer: NodeJS.Timeout | null = null;
@@ -42,15 +43,7 @@ export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Codex Usage Status");
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
   statusItem.command = "codexUsage.openSettings";
-  settingsItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-  settingsItem.text = "$(pulse)";
-  settingsItem.command = "codexUsage.openSettings";
-  settingsItem.tooltip = "Open Codex Usage Status settings";
-  settingsItem.accessibilityInformation = {
-    label: "Open Codex Usage Status settings",
-    role: "button"
-  };
-  context.subscriptions.push(output, statusItem, settingsItem);
+  context.subscriptions.push(output, statusItem);
 
   settings = getSettings();
   createClient();
@@ -79,7 +72,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
   statusItem.text = "$(sync~spin) Codex refreshing...";
   statusItem.show();
-  settingsItem.show();
   schedulePolling();
   void refreshUsage();
   void pollThreadCompletions();
@@ -311,7 +303,7 @@ function notifyTurnCompleted(event: CodexTurnCompletedEvent, showToast = true): 
     enrichedEvent,
     typeof event.durationMs === "number" ? formatDuration(event.durationMs) : null
   );
-  void showCompletionNotification("Codex chat complete", presentation.message);
+  void showCompletionNotification("Codex chat complete", presentation.message, event.threadId);
 }
 
 function getTurnNotificationKey(event: CodexTurnCompletedEvent): string {
@@ -581,13 +573,119 @@ function showVscodeNotification(
   return vscode.window.showInformationMessage(message);
 }
 
-async function showCompletionNotification(title: string, message: string): Promise<void> {
+async function showCompletionNotification(title: string, message: string, threadId: string): Promise<void> {
   const plan = getCompletionNotificationPlan(vscode.window.state.focused, settings.notificationMode);
-  const nativeDelivered = plan.native ? await showNativeNotification("info", title, message) : false;
+  const actionLabel = getCompletionActionLabel(settings.completionChatAction);
+  const nativeDelivered = plan.native
+    ? await showNativeCompletionNotification(title, message, actionLabel, threadId)
+    : false;
 
   if (plan.vscode || (plan.native && !nativeDelivered)) {
-    await showVscodeNotification("info", message);
+    const selection = actionLabel
+      ? await vscode.window.showInformationMessage(message, actionLabel)
+      : await vscode.window.showInformationMessage(message);
+    if (selection === actionLabel) {
+      await openCompletedChat(threadId);
+    }
   }
+}
+
+async function openCompletedChat(threadId: string): Promise<void> {
+  if (settings.completionChatAction === "none") {
+    return;
+  }
+
+  if (settings.completionChatAction === "sidebar" || !isValidCodexThreadId(threadId)) {
+    await openCodexSidebar();
+    return;
+  }
+
+  try {
+    const codexExtension = vscode.extensions.getExtension("openai.chatgpt");
+    if (!codexExtension) {
+      throw new Error("The OpenAI Codex extension is not installed.");
+    }
+    await codexExtension.activate();
+    const resource = vscode.Uri.from({
+      scheme: "openai-codex",
+      authority: "route",
+      path: `/local/${threadId}`
+    });
+    await vscode.commands.executeCommand("vscode.open", resource, {
+      preview: false,
+      preserveFocus: false
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Exact chat navigation failed: ${message}`);
+    vscode.window.showWarningMessage(
+      "The exact Codex chat could not be opened. Opening the Codex sidebar instead."
+    );
+    await openCodexSidebar();
+  }
+}
+
+async function openCodexSidebar(): Promise<void> {
+  try {
+    await vscode.commands.executeCommand("chatgpt.openSidebar");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    output.appendLine(`Codex sidebar navigation failed: ${message}`);
+    vscode.window.showWarningMessage("Could not open the Codex sidebar. Is the OpenAI Codex extension installed?");
+  }
+}
+
+function showNativeCompletionNotification(
+  title: string,
+  message: string,
+  actionLabel: string | null,
+  threadId: string
+): Promise<boolean> {
+  if (process.platform !== "linux") {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const args = [
+      "--app-name=Codex Usage Status",
+      "--icon=code",
+      "--urgency=normal"
+    ];
+    if (actionLabel) {
+      args.push(`--action=default=${actionLabel}`);
+    }
+    args.push(title, message);
+
+    const proc = spawn("notify-send", args, {
+      stdio: ["ignore", actionLabel ? "pipe" : "ignore", "ignore"],
+      detached: true
+    });
+
+    proc.once("spawn", () => {
+      settled = true;
+      resolve(true);
+    });
+    proc.once("error", (error) => {
+      output.appendLine(`Native completion notification failed: ${error.message}`);
+      if (!settled) {
+        settled = true;
+        resolve(false);
+      }
+    });
+    proc.once("exit", (code) => {
+      if (code !== 0) {
+        output.appendLine(`Native completion notification failed with exit code ${code ?? "unknown"}.`);
+      }
+    });
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      if (chunk.toString().trim() === "default") {
+        void openCompletedChat(threadId);
+      }
+    });
+
+    proc.unref();
+  });
 }
 
 function showNativeNotification(
