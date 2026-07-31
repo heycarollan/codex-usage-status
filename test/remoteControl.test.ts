@@ -21,8 +21,8 @@ test("presents a persistent Remote status-bar action for onboarding and connecti
     }),
     {
       text: "$(remote) Set up Remote",
-      tooltip: "New: set up full Codex Remote access from ChatGPT. Click to open the guided setup.",
-      accessibilityLabel: "Set up Codex Remote access",
+      tooltip: "Pair your phone with Codex.",
+      accessibilityLabel: "Pair your phone with Codex",
       warning: true
     }
   );

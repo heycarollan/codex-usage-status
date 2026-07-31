@@ -161,6 +161,8 @@ export function renderSettingsView(state: SettingsViewState): string {
       border: 1px solid var(--vscode-panel-border);
       padding: 14px;
     }
+    .card ol, .card ul { line-height: 1.5; padding-left: 22px; }
+    .card li + li { margin-top: 4px; }
     .metric {
       display: block;
       font-size: 22px;
@@ -247,11 +249,11 @@ export function renderSettingsView(state: SettingsViewState): string {
     <header>
       <div>
         <h1>Codex Companion</h1>
-        <p class="muted">Live usage, reset credits, remote access, and extension preferences in one place.</p>
+        <p class="muted">Usage, alerts, phone access, and settings in one place.</p>
       </div>
       <div class="actions" aria-label="Extension actions">
         <button type="button" data-command="refresh">Refresh</button>
-        <button type="button" class="secondary" data-command="restart">Restart server</button>
+        <button type="button" class="secondary" data-command="restart">Restart Codex</button>
         <button type="button" class="secondary" data-command="logs">Open logs</button>
       </div>
     </header>
@@ -271,7 +273,7 @@ export function renderSettingsView(state: SettingsViewState): string {
     </section>
 
     <section id="remote-control" tabindex="-1" aria-labelledby="remote-control-heading">
-      <h2 id="remote-control-heading">Remote control</h2>
+      <h2 id="remote-control-heading">Use Codex from your phone</h2>
       ${renderRemoteControl(
         remoteControl,
         settings.remoteControlEnabled,
@@ -319,17 +321,17 @@ export function renderSettingsView(state: SettingsViewState): string {
           )}
           ${renderNumberSetting(
             "requestTimeoutMs",
-            "Request timeout",
+            "Connection timeout",
             settings.requestTimeoutMs,
             1000,
             undefined,
-            "Milliseconds before an app-server request times out."
+            "How long Companion waits for Codex to reply, in milliseconds."
           )}
           ${renderTextSetting(
             "codexExecutable",
-            "Codex executable",
+            "Codex command",
             settings.codexExecutable,
-            "Command name or full path used to start Codex."
+            "The command or app path used to start Codex."
           )}
         </div>
       </div>
@@ -352,14 +354,14 @@ export function renderSettingsView(state: SettingsViewState): string {
           )}
           ${renderSelectSetting(
             "completionChatAction",
-            "Completion action",
+            "When a chat finishes",
             settings.completionChatAction,
             [
-              ["exact", "Exact chat (experimental)"],
-              ["sidebar", "Codex sidebar"],
-              ["none", "No action"]
+              ["exact", "Open that chat (experimental)"],
+              ["sidebar", "Open Codex"],
+              ["none", "Do nothing"]
             ],
-            "Controls what notification clicks open. Exact chat uses the OpenAI extension's current thread resource, which is not yet a documented public API."
+            "Choose what happens when you click a finished-chat notification."
           )}
         </div>
         <div class="card">
@@ -504,7 +506,7 @@ function renderResetCredits(summary: RateLimitResetCreditsSummary | null): strin
       </div>
       <button type="button" data-command="reset"${buttonDisabled}>Use reset credit</button>
     </div>
-    <p class="description">Uses the available credit that expires first. Confirmation required.</p>
+    <p class="description">Uses the available credit that expires first. You will be asked to confirm.</p>
     ${details}`;
 }
 
@@ -572,24 +574,24 @@ function renderRemoteControl(
   const disabled = state.busy ? " disabled" : "";
   const status = state.status?.status ?? (state.supported ? "disabled" : "unavailable");
   const statusLabel = status === "connected"
-    ? "Connected to OpenAI relay"
+    ? "Connected"
     : status === "connecting"
-      ? "Connecting to OpenAI relay"
+      ? "Connecting…"
       : status === "errored"
         ? "Connection error"
         : status === "disabled"
-          ? "Disabled"
+          ? "Off"
           : "Unavailable";
   const pairDisabled = state.busy || !state.supported;
-  const pairLabel = configuredEnabled ? "Create pairing code" : "Enable and create pairing code";
+  const pairLabel = configuredEnabled ? "Pair phone" : "Turn on and pair phone";
   const error = state.errorMessage
-    ? `<div class="notice"><strong>Remote control needs attention.</strong> ${escapeHtml(state.errorMessage)}</div>`
+    ? `<div class="notice"><strong>Remote needs attention.</strong> ${escapeHtml(state.errorMessage)}</div>`
     : "";
   const pairing = state.pairing
     ? `<article class="card">
-        <h3>Manual pairing code</h3>
+        <h3>Pair your phone</h3>
         <p class="pair-code">${escapeHtml(state.pairing.manualPairingCode)}</p>
-        <p class="description">Open <strong>Remote</strong> in the ChatGPT mobile app, add this computer, and enter the code. It expires ${escapeHtml(new Date(state.pairing.expiresAt * 1000).toLocaleString())}.</p>
+        <p class="description">On your phone, open <strong>Remote</strong> in ChatGPT, add this computer, and enter the code. The code expires ${escapeHtml(new Date(state.pairing.expiresAt * 1000).toLocaleString())}.</p>
         <div class="actions">
           <button type="button" data-command="remoteCopyPairingCode">Copy pairing code</button>
         </div>
@@ -597,7 +599,7 @@ function renderRemoteControl(
     : "";
   const devices = state.clients.length > 0
     ? `<div class="card">${state.clients.map(renderRemoteControlDevice).join("")}</div>`
-    : `<p class="muted">No paired controller devices were returned.</p>`;
+    : `<p class="muted">No phones or other devices are paired.</p>`;
   const removeDisabled = state.busy || (
     !configuredEnabled &&
     state.status?.status === "disabled" &&
@@ -607,60 +609,69 @@ function renderRemoteControl(
   return `${error}
     <div class="summary-grid">
       <div class="card">
-        <h3>Connection</h3>
+        <h3>Remote</h3>
         <dl>
           <dt>Status</dt><dd>${escapeHtml(statusLabel)}</dd>
           ${state.status?.serverName ? `<dt>Computer</dt><dd>${escapeHtml(state.status.serverName)}</dd>` : ""}
         </dl>
         ${renderCheckboxSetting(
           "remoteControlEnabled",
-          "Enable remote access",
+          "Keep Remote on",
           configuredEnabled,
-          "Reconnect through OpenAI's secure internet relay whenever this extension starts. One Companion window owns the relay at a time."
+          "Reconnect your paired phone when VS Code starts. Only one VS Code window can use Remote at a time."
         )}
         <div class="actions">
           <button type="button" data-command="remotePair"${pairDisabled ? " disabled" : ""}>${pairLabel}</button>
           <button type="button" class="secondary" data-command="remoteRefresh"${disabled}>Refresh</button>
-          <button type="button" class="secondary" data-command="remoteDisable"${configuredEnabled && !state.busy ? "" : " disabled"}>Disable</button>
+          <button type="button" class="secondary" data-command="remoteDisable"${configuredEnabled && !state.busy ? "" : " disabled"}>Turn off</button>
         </div>
       </div>
       <div class="card">
-        <h3>How it works</h3>
-        <p>Pair once, then use the ChatGPT mobile app from any internet connection to start or continue chats, send instructions, review outputs, and approve or reject actions.</p>
-        <p class="description">The computer must remain awake, online, and running VS Code. Pairing is opt-in. No public TCP listener is opened; optional shared-host mode uses only a temporary owner-readable local Unix socket. Codex Companion owns only the local relay lifecycle and paired-device grants; OpenAI's Remote service and ChatGPT app own the phone interface and its synchronized chat list.</p>
+        <h3>Quick setup</h3>
+        <ol>
+          <li>Turn on Remote and pair your phone.</li>
+          <li>Turn on <strong>Full live updates</strong> below.</li>
+          <li>Open the Live Codex Terminal and start a chat there.</li>
+        </ol>
+        <p class="description">Keep this computer awake, online, and running VS Code.</p>
       </div>
     </div>
+    ${pairing}
     <article class="card credit">
-      <h3>Shared live stream (experimental)</h3>
+      <h3>Full live updates</h3>
       ${renderCheckboxSetting(
         "sharedRemoteHostEnabled",
-        "Use one app-server for Remote and a Codex terminal",
+        "Share live updates with your phone",
         sharedHostEnabled,
-        "Starts Companion on a private local Unix socket. Chats opened in the Shared Codex Terminal and on the paired phone then use the same live app-server stream."
+        "Use the same Codex connection for the phone and the Live Codex Terminal."
       )}
-      <p class="description">This does not connect the official VS Code Codex panel, which still owns a separate app-server process. After enabling this option, start or continue the chats you want to follow remotely in the Shared Codex Terminal. Changing the option restarts Companion's app-server and closes any existing shared terminal session.</p>
+      <p>For the fastest phone updates, run the chat in the <strong>Live Codex Terminal</strong>. Chats in the regular Codex panel may still be delayed on your phone.</p>
+      <p class="description">Turning this setting off or restarting Codex closes the Live Codex Terminal. Open it again when you are ready.</p>
       ${state.sharedHostSupported
         ? `<div class="actions">
-            <button type="button" data-command="remoteOpenSharedTerminal"${sharedHostEnabled && !state.busy ? "" : " disabled"}>Open Shared Codex Terminal</button>
+            <button type="button" data-command="remoteOpenSharedTerminal"${sharedHostEnabled && !state.busy ? "" : " disabled"}>Open Live Codex Terminal</button>
           </div>`
-        : `<p class="description">The shared host currently requires Linux or macOS.</p>`}
+        : `<p class="description">Full live updates from the computer currently require Linux or macOS.</p>`}
     </article>
-    ${pairing}
-    <h3>Paired devices</h3>
+    <h3>Paired phones and devices</h3>
     ${devices}
     <article class="card credit">
-      <h3>Phone chat list or activity looks stale?</h3>
-      <p>Chats started or continued through this Remote host can stream live activity. In shared-host mode, use the Shared Codex Terminal so the computer and phone consume the same app-server stream. A chat running in the separate official VS Code Codex panel is visible here only through saved history, so its phone output and Thinking or Working indicator can lag until you close and reopen the chat.</p>
-      <p class="description">Codex reports live thread status only inside the app-server process running that turn. Its supported API cannot subscribe to another process's turn events, force-refresh ChatGPT's list, or list and delete saved Remote environments. If the open chat streams correctly while its list row has no activity icon, that list rendering is controlled by the ChatGPT mobile app.</p>
+      <h3>Phone looks out of date?</h3>
+      <ul>
+        <li>Close and reopen the chat on your phone.</li>
+        <li>For live updates, run the chat in the Live Codex Terminal—not the regular Codex panel.</li>
+        <li>If the chat is current but its list icon is wrong, the ChatGPT app controls that icon.</li>
+      </ul>
+      <p class="description">Codex Companion cannot refresh or erase the phone's chat list.</p>
       <div class="actions">
-        <button type="button" class="secondary" data-command="restart"${disabled}>Restart App Server</button>
+        <button type="button" class="secondary" data-command="restart"${disabled}>Restart Codex</button>
       </div>
     </article>
     <article class="card credit">
-      <h3>Remove remote connection</h3>
-      <p>Turn off this window's relay and revoke every paired device returned by Codex. This does not delete OpenAI's saved Remote environment or clear the phone app's chat list.</p>
+      <h3>Turn off and unpair</h3>
+      <p>Turn off Remote and unpair every device shown above. Chats already saved in ChatGPT will stay there.</p>
       <div class="actions">
-        <button type="button" class="secondary" data-command="remoteRemove"${removeDisabled ? " disabled" : ""}>Remove Remote Connection</button>
+        <button type="button" class="secondary" data-command="remoteRemove"${removeDisabled ? " disabled" : ""}>Turn Off and Unpair Devices</button>
       </div>
     </article>`;
 }
@@ -680,7 +691,7 @@ function renderRemoteControlDevice(device: RemoteControlClientDevice): string {
         ${details ? `<p class="description">${escapeHtml(details)}</p>` : ""}
         <p class="description">${escapeHtml(lastSeen)}</p>
       </div>
-      <button type="button" class="secondary" data-command="remoteRevoke" data-client-id="${escapeAttribute(device.clientId)}">Revoke</button>
+      <button type="button" class="secondary" data-command="remoteRevoke" data-client-id="${escapeAttribute(device.clientId)}">Unpair</button>
     </div>`;
 }
 

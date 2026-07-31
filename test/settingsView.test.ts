@@ -123,8 +123,10 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.doesNotMatch(html, /data-command="reset" disabled/);
   assert.match(html, /data-command="remoteRemove" disabled/);
   assert.match(html, /data-command="remoteOpenSharedTerminal" disabled/);
-  assert.match(html, /Use one app-server for Remote and a Codex terminal/);
-  assert.match(html, /official VS Code Codex panel.*separate/);
+  assert.match(html, /Share live updates with your phone/);
+  assert.match(html, /regular Codex panel may still be delayed/);
+  assert.match(html, /Quick setup/);
+  assert.doesNotMatch(html, /app-server|OpenAI relay|Unix socket|Remote environment/i);
 
   for (const key of [
     "refreshIntervalSeconds",
@@ -260,7 +262,7 @@ test("renders remote pairing and revocable devices without exposing raw markup",
     }
   });
 
-  assert.match(html, /Connected to OpenAI relay/);
+  assert.match(html, /<dd>Connected<\/dd>/);
   assert.match(html, /id="remote-control" tabindex="-1"/);
   assert.match(html, /requestAnimationFrame\(\(\) => focusSection\("remote-control"\)\)/);
   assert.match(html, /event\.data\.section === "remote-control"/);
@@ -271,14 +273,13 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   assert.match(html, /data-command="remoteRevoke"/);
   assert.match(html, /data-command="remoteRemove">/);
   assert.match(html, /data-command="remoteOpenSharedTerminal">/);
-  assert.match(html, /Shared Codex Terminal/);
-  assert.match(html, /Remove Remote Connection/);
-  assert.match(html, /Phone chat list or activity looks stale\?/);
+  assert.match(html, /Live Codex Terminal/);
+  assert.match(html, /Turn Off and Unpair Devices/);
+  assert.match(html, /Phone looks out of date\?/);
   assert.match(html, /data-command="restart"/);
-  assert.match(html, /live thread status only inside the app-server process/);
-  assert.match(html, /cannot subscribe to another process's turn events/);
-  assert.match(html, /list row has no activity icon/);
-  assert.match(html, /does not delete OpenAI's saved Remote environment/);
+  assert.match(html, /cannot refresh or erase the phone's chat list/);
+  assert.match(html, /list icon is wrong/);
+  assert.doesNotMatch(html, /app-server|OpenAI relay|Unix socket|Remote environment/i);
   assert.doesNotMatch(html, /private-pairing-artifact/);
   assert.doesNotMatch(html, /<script>bad\(\)<\/script>/);
 });

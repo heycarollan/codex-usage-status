@@ -7,6 +7,7 @@
 - Keep the default stdio host unchanged and state explicitly that the official VS Code Codex panel still uses a separate app-server and cannot be bridged through a supported API.
 - Secure each shared endpoint inside a random per-process directory with owner-only permissions, disable unsupported WebSocket compression, terminate the exact child process group, and remove the socket directory during shutdown.
 - Add regression coverage for shared WebSocket initialization, restart, ephemeral Remote disable, single-process lifecycle, and endpoint cleanup.
+- Rewrite Remote setup and settings in plain language, with a short three-step guide and clearer Pair, Live Updates, Unpair, and phone-recovery actions.
 
 ## 1.1.1
 

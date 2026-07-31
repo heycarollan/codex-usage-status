@@ -35,9 +35,9 @@ const REMOTE_CONTROL_CONNECT_ATTEMPTS = 20;
 const REMOTE_CONTROL_CONNECT_DELAY_MS = 500;
 const REMOTE_CONTROL_PAIRING_POLL_MS = 3000;
 const REMOTE_CONTROL_ONBOARDING_KEY = "codexCompanion.remoteControlOnboarding.v1";
-const REMOTE_CONTROL_SETUP_ACTION = "Set Up Remote Control";
+const REMOTE_CONTROL_SETUP_ACTION = "Pair Phone";
 const REMOTE_CONTROL_OWNER_MESSAGE =
-  "Remote Control is already owned by another VS Code window. Close or disable it there; this window will take over automatically after the other extension host exits.";
+  "Remote is already running in another VS Code window. Close that window or turn off Remote there, then try again.";
 
 let client: CodexAppServerClient | null = null;
 let usageService: UsageService | null = null;
@@ -191,7 +191,7 @@ async function showRemoteControlOnboarding(context: vscode.ExtensionContext): Pr
   updateRemoteStatusItem();
 
   const selection = await vscode.window.showInformationMessage(
-    "Codex Companion now includes full ChatGPT Remote setup (experimental). Use the new Remote button beside Codex usage to pair this computer.",
+    "Use ChatGPT on your phone to control Codex from anywhere. Click Remote to pair your phone.",
     REMOTE_CONTROL_SETUP_ACTION,
     "Not now"
   );
@@ -278,13 +278,13 @@ function createClient(): void {
 async function openSharedCodexTerminal(): Promise<void> {
   if (!settings.sharedRemoteHostEnabled) {
     vscode.window.showWarningMessage(
-      "Enable Shared live stream in Codex Companion before opening the shared terminal."
+      "Turn on Share live updates with your phone first."
     );
     return;
   }
   if (!isSharedAppServerSupported()) {
     vscode.window.showErrorMessage(
-      "The Codex Companion shared host currently requires Linux or macOS."
+      "Full live updates from the computer currently require Linux or macOS."
     );
     return;
   }
@@ -295,23 +295,23 @@ async function openSharedCodexTerminal(): Promise<void> {
   try {
     const endpoint = await client?.getSharedHostEndpoint();
     if (!endpoint) {
-      throw new Error("The shared Codex app-server is not active.");
+      throw new Error("The live Codex connection is not ready.");
     }
     const terminal = vscode.window.createTerminal({
-      name: "Codex Shared Remote",
+      name: "Codex Remote (Live)",
       shellPath: resolveCodexExecutable(),
       shellArgs: ["--remote", endpoint],
       cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
     });
     terminal.show();
     vscode.window.setStatusBarMessage(
-      "Shared Codex terminal opened. Chats run there share Remote's live stream.",
+      "Live Codex Terminal opened. Start your test chat there.",
       5000
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Shared Codex terminal failed: ${message}`);
-    vscode.window.showErrorMessage(`Could not open the shared Codex terminal: ${message}`);
+    vscode.window.showErrorMessage(`Could not open the Live Codex Terminal: ${message}`);
   }
 }
 
@@ -647,7 +647,7 @@ async function refreshRemoteControl(showToast = false): Promise<void> {
   } catch (error) {
     setRemoteControlError(error);
     if (showToast) {
-      vscode.window.showErrorMessage(`Could not refresh Codex remote control: ${remoteControlError}`);
+      vscode.window.showErrorMessage(`Could not refresh Remote: ${remoteControlError}`);
     }
   } finally {
     remoteControlPollInFlight = false;
@@ -732,8 +732,8 @@ async function enableAndPairRemoteControl(): Promise<void> {
     if (status.status !== "connected") {
       throw new Error(
         status.status === "errored"
-          ? "Codex could not connect to the remote-control relay."
-          : "Codex remote control did not connect before the pairing request timed out."
+          ? "Remote could not connect."
+          : "Remote took too long to connect. Try again."
       );
     }
 
@@ -747,11 +747,11 @@ async function enableAndPairRemoteControl(): Promise<void> {
     scheduleRemotePairingPoll();
     await refreshRemoteControlClients(remoteControlPairing.environmentId);
     vscode.window.showInformationMessage(
-      "Codex remote-control pairing code is ready. Copy it from Codex Companion into ChatGPT Remote."
+      "Pairing code ready. Enter it in ChatGPT Remote on your phone."
     );
   } catch (error) {
     setRemoteControlError(error);
-    vscode.window.showErrorMessage(`Could not create a Codex remote-control pairing code: ${remoteControlError}`);
+    vscode.window.showErrorMessage(`Could not create a pairing code: ${remoteControlError}`);
   } finally {
     if (!settings.remoteControlEnabled) {
       remoteControlLease?.release();
@@ -767,11 +767,11 @@ async function disableRemoteControl(): Promise<void> {
   }
 
   const confirmation = await vscode.window.showWarningMessage(
-    "Disable Codex remote control on this computer? Existing device grants are retained until revoked.",
+    "Turn off Remote? Your devices will stay paired.",
     { modal: true },
-    "Disable Remote Control"
+    "Turn Off Remote"
   );
-  if (confirmation !== "Disable Remote Control") {
+  if (confirmation !== "Turn Off Remote") {
     return;
   }
 
@@ -793,7 +793,7 @@ async function disableRemoteControl(): Promise<void> {
     output.appendLine("Remote control disabled.");
   } catch (error) {
     setRemoteControlError(error);
-    vscode.window.showErrorMessage(`Could not disable Codex remote control: ${remoteControlError}`);
+    vscode.window.showErrorMessage(`Could not turn off Remote: ${remoteControlError}`);
   } finally {
     remoteControlBusy = false;
     renderSettingsPanel();
@@ -806,11 +806,11 @@ async function removeRemoteControl(): Promise<void> {
   }
 
   const confirmation = await vscode.window.showWarningMessage(
-    "Remove this computer's Codex Remote connection? Remote access will be disabled and every listed paired device will be revoked. You can set it up again later.",
+    "Turn off Remote and unpair every device shown here?",
     { modal: true },
-    "Remove Remote Connection"
+    "Turn Off and Unpair"
   );
-  if (confirmation !== "Remove Remote Connection") {
+  if (confirmation !== "Turn Off and Unpair") {
     return;
   }
 
@@ -848,18 +848,18 @@ async function removeRemoteControl(): Promise<void> {
     remoteControlOwnershipBlocked = false;
     remoteControlLease?.release();
     remoteControlError = deviceRefreshFailed
-      ? "The current paired-device list could not be refreshed before removal. The relay is off, but an unlisted device grant may remain; reconnect and retry removal when Codex is available."
+      ? "Remote is off, but Companion could not check every paired device. Reconnect and try again later."
       : failedDevices.length > 0
-        ? `${failedDevices.length} paired device${failedDevices.length === 1 ? "" : "s"} could not be revoked. Retry removal or re-enable Remote Control and revoke them individually.`
+        ? `${failedDevices.length} device${failedDevices.length === 1 ? "" : "s"} could not be unpaired. Turn Remote on and try again.`
         : null;
 
     const revokedCount = !deviceRefreshFailed && remoteControlClients.length === 0
-      ? "All listed paired devices were revoked."
-      : "Some paired devices still need to be revoked.";
+      ? "All shown devices were unpaired."
+      : "Some devices may still be paired.";
     output.appendLine(
       `Remote connection removed; ${failedDevices.length} device revocation${failedDevices.length === 1 ? "" : "s"} failed.`
     );
-    const message = `Codex Remote is disconnected. ${revokedCount} The supported API does not delete OpenAI's saved Remote environment or the phone app's chat list.`;
+    const message = `Remote is off. ${revokedCount} Chats already saved in ChatGPT will stay there.`;
     if (failedDevices.length > 0 || deviceRefreshFailed) {
       vscode.window.showWarningMessage(message);
     } else {
@@ -867,7 +867,7 @@ async function removeRemoteControl(): Promise<void> {
     }
   } catch (error) {
     setRemoteControlError(error);
-    vscode.window.showErrorMessage(`Could not remove the Codex Remote connection: ${remoteControlError}`);
+    vscode.window.showErrorMessage(`Could not turn off and unpair Remote: ${remoteControlError}`);
   } finally {
     remoteControlBusy = false;
     renderSettingsPanel(true);
@@ -879,12 +879,12 @@ async function copyRemoteControlPairingCode(): Promise<void> {
     remoteControlPairing = null;
     clearRemotePairingTimer();
     renderSettingsPanel();
-    vscode.window.showWarningMessage("That remote-control pairing code has expired. Create a new code.");
+    vscode.window.showWarningMessage("That pairing code expired. Create a new one.");
     return;
   }
 
   await vscode.env.clipboard.writeText(remoteControlPairing.manualPairingCode);
-  vscode.window.setStatusBarMessage("Codex remote-control pairing code copied.", 3000);
+  vscode.window.setStatusBarMessage("Pairing code copied.", 3000);
 }
 
 async function revokeRemoteControlClient(clientId: unknown): Promise<void> {
@@ -900,17 +900,17 @@ async function revokeRemoteControlClient(clientId: unknown): Promise<void> {
 
   const environmentId = remoteControlStatus?.environmentId ?? lastRemoteControlEnvironmentId;
   if (!environmentId) {
-    vscode.window.showErrorMessage("Re-enable remote control before managing paired devices.");
+    vscode.window.showErrorMessage("Turn Remote on before managing paired devices.");
     return;
   }
 
   const name = device.displayName ?? device.deviceModel ?? device.deviceType ?? "this device";
   const confirmation = await vscode.window.showWarningMessage(
-    `Revoke Codex remote-control access for ${name}?`,
+    `Unpair ${name}?`,
     { modal: true },
-    "Revoke Device"
+    "Unpair"
   );
-  if (confirmation !== "Revoke Device") {
+  if (confirmation !== "Unpair") {
     return;
   }
 
@@ -923,7 +923,7 @@ async function revokeRemoteControlClient(clientId: unknown): Promise<void> {
     output.appendLine("Remote controller device revoked.");
   } catch (error) {
     setRemoteControlError(error);
-    vscode.window.showErrorMessage(`Could not revoke the remote-control device: ${remoteControlError}`);
+    vscode.window.showErrorMessage(`Could not unpair the device: ${remoteControlError}`);
   } finally {
     remoteControlBusy = false;
     renderSettingsPanel();

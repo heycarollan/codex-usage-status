@@ -71,7 +71,7 @@
       },
       {
         "command": "codexUsage.restartAppServer",
-        "title": "Codex Companion: Restart App Server"
+        "title": "Codex Companion: Restart Codex Connection"
       },
       {
         "command": "codexUsage.resetUsage",
@@ -87,11 +87,11 @@
       },
       {
         "command": "codexUsage.openRemoteControl",
-        "title": "Codex Companion: Set Up Remote Control"
+        "title": "Codex Companion: Pair Phone"
       },
       {
         "command": "codexUsage.openSharedCodexTerminal",
-        "title": "Codex Companion: Open Shared Codex Terminal"
+        "title": "Codex Companion: Open Live Codex Terminal"
       }
     ],
     "configuration": {
@@ -146,7 +146,7 @@
           "type": "number",
           "default": 12000,
           "minimum": 1000,
-          "description": "Timeout for Codex app-server JSON-RPC requests."
+          "description": "How long Codex Companion waits for Codex to reply, in milliseconds."
         },
         "codexUsage.notifyUsageWarnings": {
           "type": "boolean",
@@ -196,12 +196,12 @@
         "codexUsage.remoteControlEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Opt in to Codex remote control through OpenAI's internet relay while VS Code is running. Pair and revoke ChatGPT devices from Codex Companion."
+          "description": "Let ChatGPT on your paired phone control Codex while VS Code is running."
         },
         "codexUsage.sharedRemoteHostEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Experimental on Linux and macOS: run Codex Companion on a private Unix socket so ChatGPT Remote and the Shared Codex Terminal use one live app-server stream. The official VS Code Codex panel remains separate."
+          "description": "On Linux and macOS, use the Live Codex Terminal for faster, complete phone updates. The regular Codex panel stays separate."
         }
       }
     }
