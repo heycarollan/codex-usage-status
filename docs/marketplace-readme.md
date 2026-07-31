@@ -1,20 +1,29 @@
-# Codex Companion: Remote Control, Usage Status & Resets
+<p align="center">
+  <img src="https://raw.githubusercontent.com/heycarollan/codex-usage-status/main/assets/synapticraft-icon.png" alt="Codex Companion by Synapticraft" width="128">
+</p>
 
-[![VS Code Marketplace](https://badgen.net/vs-marketplace/v/synapticraft.codex-usage-status)](https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status)
-[![GitHub release](https://badgen.net/github/release/heycarollan/codex-usage-status)](https://github.com/heycarollan/codex-usage-status/releases/latest)
+<h1 align="center">Codex Companion: ChatGPT Remote & Usage</h1>
 
-Set up ChatGPT Remote in about a minute, monitor Codex usage, receive completion alerts, return to exact chats, and manage reset credits from one VS Code settings page.
+<p align="center"><strong>Pair ChatGPT Remote with Codex in VS Code and control work from your phone.</strong></p>
+
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status"><img src="https://badgen.net/vs-marketplace/v/synapticraft.codex-usage-status" alt="VS Code Marketplace version"></a>
+  <a href="https://github.com/heycarollan/codex-usage-status/releases/latest"><img src="https://badgen.net/github/release/heycarollan/codex-usage-status" alt="Latest GitHub release"></a>
+  <img src="https://badgen.net/badge/package/1.2.1/00695c" alt="Package version 1.2.1">
+</p>
+
+Remote Control is a main feature: pair your phone, check whether the host is connected, manage paired devices, and remove access from one simple settings page. Codex usage stays visible in the status bar, with completion alerts, chat navigation, and reset credits close at hand.
 
 > **Linux without VS Code?** This project also documents the official standalone Codex Remote host. Use the [one-block Linux setup on GitHub](https://github.com/heycarollan/codex-usage-status#linux-remote-control-without-vs-code)—no VS Code extension or separate desktop controller is required.
 
 ## Features
 
 - Display Codex 5-hour and 7-day usage in the status bar, using `N/A` when Codex does not provide a window.
+- Pair ChatGPT Remote, see connection state, manage paired devices, and turn Remote access off from VS Code.
 - Show account, token, model-bucket, reset-credit, and expiration details in a unified settings editor.
 - Notify for usage warnings, completed Codex turns, and input or approval requests.
 - Open the exact completed local Codex chat, the general Codex sidebar, or no chat action.
 - Use the available reset credit nearest expiration after a modal confirmation.
-- Enable Codex's official Remote Control relay, create and copy a short-lived manual pairing code, inspect connection state, and revoke paired ChatGPT devices.
 - On Linux or macOS, optionally open the official Codex terminal against Companion's private local app-server socket. It does not mirror the phone live.
 - Open Remote setup directly from a persistent status-bar button beside usage, with one-time first-install guidance and no Command Palette step.
 

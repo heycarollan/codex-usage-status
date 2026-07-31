@@ -291,7 +291,7 @@ export class CodexAppServerClient {
       clientInfo: {
         name: "codex_usage_status_vscode",
         title: "Codex Companion",
-        version: "1.2.0"
+        version: "1.2.1"
       },
       capabilities: {
         experimentalApi: true

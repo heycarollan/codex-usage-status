@@ -103,7 +103,7 @@ The extension must not claim to fix this boundary. Relay restart and re-pair act
 ## Product and documentation surfaces
 
 - The stable Marketplace identifier remains `synapticraft.codex-usage-status`, preserving installs, ratings, and update continuity.
-- The visible Marketplace name is **Codex Companion: Remote Control, Usage Status & Resets** so the title contains the broader brand and concrete high-intent feature terms without a vague "and more" suffix.
+- The visible Marketplace name is **Codex Companion: ChatGPT Remote & Usage** so Remote Control and the at-a-glance usage feature are both clear in a compact title.
 - Manifest description and keywords cover Codex, remote control, ChatGPT Remote, Linux, headless, mobile, usage, completions, and reset credits. VS Code documents `displayName`, `description`, and keywords as search inputs.
 - The repository README serves both audiences and leads with a choice between Linux Remote and the extension.
 - `docs/marketplace-readme.md` is packaged as the Marketplace README. It stays extension-focused and links web visitors to the no-VS-Code Linux route.
@@ -119,7 +119,7 @@ The extension must not claim to fix this boundary. Relay restart and re-pair act
 
 ## Release sequence
 
-1. Review the 1.1.1 lifecycle corrections and the opt-in 1.2.0 Remote Codex Terminal locally.
+1. Review the lifecycle corrections and the opt-in 1.2.1 Remote Codex Terminal locally.
 2. Package and install the VSIX in an isolated VS Code profile.
 3. Verify and document that the Remote Codex Terminal opens successfully but does not promise phone/terminal live mirroring.
 4. Confirm whether ChatGPT mobile's transcript and list-row activity update; record delayed output, missing activity, and phone-owned rendering honestly.

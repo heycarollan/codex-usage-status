@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+
+- Lead the Marketplace and GitHub presentation with ChatGPT Remote Control while keeping usage visible as the first compact status feature.
+- Add the branded Codex Companion icon and an explicit package-version badge to both README surfaces.
+- Keep the optional Remote Codex Terminal while stating prominently that it does not mirror the phone live.
+
 ## 1.2.0
 
 - Add an opt-in Remote Codex Terminal on Linux and macOS that starts the supported Codex app-server on a private Unix socket and connects Codex Companion over WebSocket.
