@@ -630,28 +630,28 @@ function renderRemoteControl(
         <h3>Quick setup</h3>
         <ol>
           <li>Turn on Remote and pair your phone.</li>
-          <li>Turn on <strong>Full live updates</strong> below.</li>
-          <li>Open the Live Codex Terminal and start a chat there.</li>
+          <li>Open Remote in ChatGPT and choose this computer.</li>
+          <li>Close and reopen a phone chat if it looks behind.</li>
         </ol>
         <p class="description">Keep this computer awake, online, and running VS Code.</p>
       </div>
     </div>
     ${pairing}
     <article class="card credit">
-      <h3>Full live updates</h3>
+      <h3>Remote Codex Terminal (experimental)</h3>
       ${renderCheckboxSetting(
         "sharedRemoteHostEnabled",
-        "Share live updates with your phone",
+        "Enable Remote Codex Terminal",
         sharedHostEnabled,
-        "Use the same Codex connection for the phone and the Live Codex Terminal."
+        "Open an optional Codex terminal that uses Companion's Remote host."
       )}
-      <p>For the fastest phone updates, run the chat in the <strong>Live Codex Terminal</strong>. Chats in the regular Codex panel may still be delayed on your phone.</p>
-      <p class="description">Turning this setting off or restarting Codex closes the Live Codex Terminal. Open it again when you are ready.</p>
+      <p><strong>This terminal does not mirror the phone live.</strong> Terminal work may appear on the phone only after it finishes, and phone replies may not appear in the terminal.</p>
+      <p class="description">Use it as a separate terminal view. Turning this setting off or restarting Codex closes it.</p>
       ${state.sharedHostSupported
         ? `<div class="actions">
-            <button type="button" data-command="remoteOpenSharedTerminal"${sharedHostEnabled && !state.busy ? "" : " disabled"}>Open Live Codex Terminal</button>
+            <button type="button" data-command="remoteOpenSharedTerminal"${sharedHostEnabled && !state.busy ? "" : " disabled"}>Open Remote Codex Terminal</button>
           </div>`
-        : `<p class="description">Full live updates from the computer currently require Linux or macOS.</p>`}
+        : `<p class="description">Remote Codex Terminal currently requires Linux or macOS.</p>`}
     </article>
     <h3>Paired phones and devices</h3>
     ${devices}
@@ -659,7 +659,8 @@ function renderRemoteControl(
       <h3>Phone looks out of date?</h3>
       <ul>
         <li>Close and reopen the chat on your phone.</li>
-        <li>For live updates, run the chat in the Live Codex Terminal—not the regular Codex panel.</li>
+        <li>Thinking, Working, and new output may lag until the phone refreshes.</li>
+        <li>The Remote Codex Terminal and phone do not update each other live.</li>
         <li>If the chat is current but its list icon is wrong, the ChatGPT app controls that icon.</li>
       </ul>
       <p class="description">Codex Companion cannot refresh or erase the phone's chat list.</p>

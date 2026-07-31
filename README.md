@@ -63,7 +63,7 @@ The extension talks to the local Codex app-server and reads:
 - A configurable completion action that opens the exact completed local chat, opens the general Codex sidebar, or stays hidden. Exact-chat switching uses the OpenAI extension's current thread resource and is marked experimental until OpenAI documents a public API.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
 - Opt-in ChatGPT Remote setup using Codex's official secure internet relay. Create and copy a short-lived manual pairing code, see connection state, and revoke paired controller devices from the settings editor.
-- Experimental shared live-stream mode on Linux and macOS. Open the official Codex terminal against Companion's private app-server socket so computer-terminal chats and ChatGPT Remote use one live event source.
+- Optional Remote Codex Terminal on Linux and macOS. It uses Companion's private local app-server socket but does not mirror phone activity live.
 - Configurable refresh interval, warning threshold, and executable source or path.
 - The status-bar usage display and its tooltip action open the unified settings editor.
 
@@ -76,12 +76,12 @@ The settings editor includes a **Use reset credit** button with the available co
 ## Commands
 
 - `Codex Companion: Refresh Usage`
-- `Codex Companion: Restart App Server`
+- `Codex Companion: Restart Codex Connection`
 - `Codex Companion: Use Reset Credit`
 - `Codex Companion: Open Settings`
 - `Codex Companion: Open Logs`
-- `Codex Companion: Set Up Remote Control`
-- `Codex Companion: Open Shared Codex Terminal`
+- `Codex Companion: Pair Phone`
+- `Codex Companion: Open Remote Codex Terminal`
 
 ## Remote control
 
@@ -91,19 +91,19 @@ The extension does not create a public listener or operate a separate relay. Its
 
 If you no longer want the connection, use **Remove Remote Connection** at the bottom of the Remote Control section. After a modal confirmation, Codex Companion refreshes the complete supported device list, revokes those controllers, and disables the relay. The status-bar button remains available so you can set up Remote again later.
 
-### Shared live stream from the computer
+### Optional Remote Codex Terminal
 
-Codex app-server live activity is process-local. On Linux or macOS, enable **Use one app-server for Remote and a Codex terminal**, then select **Open Shared Codex Terminal**. Companion starts one app-server on a private Unix socket and opens the official Codex CLI with `codex --remote` against that same socket. Chats started or continued in this terminal and viewed through the paired Remote host therefore use the same live thread runtime and event stream.
+On Linux or macOS, enable **Remote Codex Terminal**, then select **Open Remote Codex Terminal**. Companion starts one app-server on a private Unix socket and opens the official Codex CLI with `codex --remote` against that socket.
 
-This mode is opt-in and does not change the official VS Code Codex panel. That panel owns a separate private app-server, so its already-running chats still cannot be attached or mirrored safely. Changing shared-host mode or restarting Companion closes the current shared terminal connection; open a new Shared Codex Terminal afterward. The transport follows Codex's documented [app-server terminal connection](https://learn.chatgpt.com/docs/app-server#connect-the-cli-terminal-ui) and [`codex app-server --listen`](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-app-server) interfaces.
+This terminal is a separate client. It does not mirror the phone or official VS Code Codex panel live. In real-device testing, terminal work appeared on the phone only after completion, and a phone reply did not appear in the open terminal. Close and reopen the phone chat to refresh it. Changing this setting or restarting Companion closes the terminal connection; open a new Remote Codex Terminal afterward. The transport follows Codex's documented [app-server terminal connection](https://learn.chatgpt.com/docs/app-server#connect-the-cli-terminal-ui) and [`codex app-server --listen`](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-app-server) interfaces.
 
 ### Stale chats or activity in the phone app
 
 Codex Companion does not render or store the ChatGPT phone interface. The supported app-server API exposes relay status, one current environment identifier, pairing, and controller-device list/revoke operations. It does not expose an environment list/delete/unregister method or an operation that refreshes or deletes ChatGPT mobile's active-chat list.
 
-Live thread status is also process-local in Codex app-server. A chat started or continued through Companion's Remote host—or through the Shared Codex Terminal connected to that host—can stream its activity to the phone. A chat already running in a different Codex, ChatGPT, or IDE app-server on the same computer may be discoverable from saved history while its output and Thinking or Working state lag until the phone closes and reopens the chat. There is no supported cross-process attach or status-subscription API, so Codex Companion cannot safely bridge those live events.
+Live thread events are scoped to the client connection that starts or resumes a thread. Using one app-server process for the Remote Codex Terminal and phone does not make them one synchronized interface. Terminal output may reach the phone only after completion, phone replies may not appear in the terminal, and Thinking or Working state may lag until the phone closes and reopens the chat. A chat running in the separate official VS Code Codex panel has the same limitation. Codex Companion has no supported peer-client mirroring API that can bridge those live events.
 
-Restart, reload, disable/re-enable, and re-pair steps can recover the relay connection, but they cannot make separate app-server processes share live activity. If an open phone chat is current while its list row still lacks an activity icon, that row is rendered and synchronized by the ChatGPT mobile app. If an old entry remains after the current host is disconnected and re-paired, that entry is OpenAI Remote/ChatGPT synchronization state; the extension has no supported API to remove it.
+Restart, reload, disable/re-enable, and re-pair steps can recover the relay connection, but they cannot make separate clients or app-server processes mirror live activity. If an open phone chat is current while its list row still lacks an activity icon, that row is rendered and synchronized by the ChatGPT mobile app. If an old entry remains after the current host is disconnected and re-paired, that entry is OpenAI Remote/ChatGPT synchronization state; the extension has no supported API to remove it.
 
 The host computer must remain awake and online with VS Code running. Remote Control availability can depend on the installed Codex version, ChatGPT mobile rollout, account or workspace eligibility, and administrator policy. The app-server methods are experimental, and OpenAI's general Remote guide does not yet describe IDE-based setup, so this feature needs real-device pairing verification before release. See OpenAI's [Remote connections documentation](https://learn.chatgpt.com/docs/remote-connections).
 
@@ -135,7 +135,7 @@ Click the Codex status-bar usage display to open **Codex Companion**. It combine
 | `codexUsage.notificationMode` | `vscode` | Use VS Code notifications, native Linux notifications, or both. |
 | `codexUsage.completionChatAction` | `exact` | Open the exact completed chat (experimental), open the Codex sidebar, or show no chat action. |
 | `codexUsage.remoteControlEnabled` | `false` | Opt in to one Companion window reconnecting through OpenAI's remote-control relay while VS Code runs. |
-| `codexUsage.sharedRemoteHostEnabled` | `false` | On Linux or macOS, use one private Unix-socket app-server for Companion, ChatGPT Remote, and the Shared Codex Terminal. The official VS Code Codex panel remains separate. |
+| `codexUsage.sharedRemoteHostEnabled` | `false` | On Linux or macOS, enable the optional Remote Codex Terminal. It does not mirror the phone or VS Code Codex panel live. |
 
 ## Notifications
 

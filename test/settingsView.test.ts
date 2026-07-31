@@ -123,9 +123,10 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.doesNotMatch(html, /data-command="reset" disabled/);
   assert.match(html, /data-command="remoteRemove" disabled/);
   assert.match(html, /data-command="remoteOpenSharedTerminal" disabled/);
-  assert.match(html, /Share live updates with your phone/);
-  assert.match(html, /regular Codex panel may still be delayed/);
+  assert.match(html, /Enable Remote Codex Terminal/);
+  assert.match(html, /does not mirror the phone live/);
   assert.match(html, /Quick setup/);
+  assert.doesNotMatch(html, /Full live updates|Share live updates/);
   assert.doesNotMatch(html, /app-server|OpenAI relay|Unix socket|Remote environment/i);
 
   for (const key of [
@@ -273,7 +274,9 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   assert.match(html, /data-command="remoteRevoke"/);
   assert.match(html, /data-command="remoteRemove">/);
   assert.match(html, /data-command="remoteOpenSharedTerminal">/);
-  assert.match(html, /Live Codex Terminal/);
+  assert.match(html, /Remote Codex Terminal/);
+  assert.match(html, /Terminal work may appear on the phone only after it finishes/);
+  assert.match(html, /phone replies may not appear in the terminal/);
   assert.match(html, /Turn Off and Unpair Devices/);
   assert.match(html, /Phone looks out of date\?/);
   assert.match(html, /data-command="restart"/);

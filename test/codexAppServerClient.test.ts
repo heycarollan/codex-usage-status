@@ -80,7 +80,7 @@ input.on("line", (line) => {
   }
 });
 
-test("shares one Unix-socket app-server across clients and cleans it up", {
+test("uses a private Unix-socket app-server transport and cleans it up", {
   skip: process.platform === "win32"
 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "codex-companion-shared-client-test-"));

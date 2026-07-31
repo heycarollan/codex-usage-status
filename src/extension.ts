@@ -278,13 +278,13 @@ function createClient(): void {
 async function openSharedCodexTerminal(): Promise<void> {
   if (!settings.sharedRemoteHostEnabled) {
     vscode.window.showWarningMessage(
-      "Turn on Share live updates with your phone first."
+      "Turn on Remote Codex Terminal first."
     );
     return;
   }
   if (!isSharedAppServerSupported()) {
     vscode.window.showErrorMessage(
-      "Full live updates from the computer currently require Linux or macOS."
+      "Remote Codex Terminal currently requires Linux or macOS."
     );
     return;
   }
@@ -295,23 +295,23 @@ async function openSharedCodexTerminal(): Promise<void> {
   try {
     const endpoint = await client?.getSharedHostEndpoint();
     if (!endpoint) {
-      throw new Error("The live Codex connection is not ready.");
+      throw new Error("The Remote terminal connection is not ready.");
     }
     const terminal = vscode.window.createTerminal({
-      name: "Codex Remote (Live)",
+      name: "Codex Remote Terminal",
       shellPath: resolveCodexExecutable(),
       shellArgs: ["--remote", endpoint],
       cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
     });
     terminal.show();
     vscode.window.setStatusBarMessage(
-      "Live Codex Terminal opened. Start your test chat there.",
+      "Remote Codex Terminal opened. It does not mirror the phone live.",
       5000
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     output.appendLine(`Shared Codex terminal failed: ${message}`);
-    vscode.window.showErrorMessage(`Could not open the Live Codex Terminal: ${message}`);
+    vscode.window.showErrorMessage(`Could not open the Remote Codex Terminal: ${message}`);
   }
 }
 

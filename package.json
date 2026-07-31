@@ -91,7 +91,7 @@
       },
       {
         "command": "codexUsage.openSharedCodexTerminal",
-        "title": "Codex Companion: Open Live Codex Terminal"
+        "title": "Codex Companion: Open Remote Codex Terminal"
       }
     ],
     "configuration": {
@@ -201,7 +201,7 @@
         "codexUsage.sharedRemoteHostEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "On Linux and macOS, use the Live Codex Terminal for faster, complete phone updates. The regular Codex panel stays separate."
+          "description": "On Linux and macOS, open a Codex terminal that uses Companion's Remote host. The terminal and phone do not mirror each other live."
         }
       }
     }
