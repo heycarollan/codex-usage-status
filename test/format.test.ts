@@ -16,7 +16,8 @@ const settings: ExtensionSettings = {
   notifyNeedsInput: true,
   notificationMode: "vscode",
   completionChatAction: "exact",
-  remoteControlEnabled: false
+  remoteControlEnabled: false,
+  sharedRemoteHostEnabled: false
 };
 
 test("formats missing windows as N/A", () => {

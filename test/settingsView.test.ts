@@ -16,11 +16,13 @@ const settings: ExtensionSettings = {
   notifyNeedsInput: true,
   notificationMode: "vscode",
   completionChatAction: "exact",
-  remoteControlEnabled: false
+  remoteControlEnabled: false,
+  sharedRemoteHostEnabled: false
 };
 
 const remoteControl = {
   supported: true,
+  sharedHostSupported: true,
   busy: false,
   status: {
     status: "disabled" as const,
@@ -120,6 +122,12 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.match(html, /data-command="reset"/);
   assert.doesNotMatch(html, /data-command="reset" disabled/);
   assert.match(html, /data-command="remoteRemove" disabled/);
+  assert.match(html, /data-command="remoteOpenSharedTerminal" disabled/);
+  assert.match(html, /Enable Remote Codex Terminal/);
+  assert.match(html, /does not mirror the phone live/);
+  assert.match(html, /Quick setup/);
+  assert.doesNotMatch(html, /Full live updates|Share live updates/);
+  assert.doesNotMatch(html, /app-server|OpenAI relay|Unix socket|Remote environment/i);
 
   for (const key of [
     "refreshIntervalSeconds",
@@ -133,7 +141,8 @@ test("renders usage, reset details, actions, and every configurable setting", ()
     "notifyNeedsInput",
     "notificationMode",
     "completionChatAction",
-    "remoteControlEnabled"
+    "remoteControlEnabled",
+    "sharedRemoteHostEnabled"
   ]) {
     assert.match(html, new RegExp(`data-setting="${key}"`));
   }
@@ -195,6 +204,10 @@ test("validates settings messages before updating VS Code configuration", () => 
     { key: "remoteControlEnabled", value: true }
   );
   assert.deepEqual(
+    normalizeSettingUpdate("sharedRemoteHostEnabled", true),
+    { key: "sharedRemoteHostEnabled", value: true }
+  );
+  assert.deepEqual(
     normalizeSettingUpdate("codexExecutable", "  /usr/bin/codex  "),
     { key: "codexExecutable", value: "/usr/bin/codex" }
   );
@@ -210,12 +223,17 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   const html = renderSettingsView({
     cspSource: "vscode-webview://test",
     nonce: "nonce-value",
-    settings: { ...settings, remoteControlEnabled: true },
+    settings: {
+      ...settings,
+      remoteControlEnabled: true,
+      sharedRemoteHostEnabled: true
+    },
     snapshot,
     errorMessage: null,
     focusRemoteControl: true,
     remoteControl: {
       supported: true,
+      sharedHostSupported: true,
       busy: false,
       status: {
         status: "connected",
@@ -245,7 +263,7 @@ test("renders remote pairing and revocable devices without exposing raw markup",
     }
   });
 
-  assert.match(html, /Connected to OpenAI relay/);
+  assert.match(html, /<dd>Connected<\/dd>/);
   assert.match(html, /id="remote-control" tabindex="-1"/);
   assert.match(html, /requestAnimationFrame\(\(\) => focusSection\("remote-control"\)\)/);
   assert.match(html, /event\.data\.section === "remote-control"/);
@@ -255,8 +273,16 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   assert.match(html, /Carol&#39;s phone/);
   assert.match(html, /data-command="remoteRevoke"/);
   assert.match(html, /data-command="remoteRemove">/);
-  assert.match(html, /Remove Remote Connection/);
-  assert.match(html, /set it up again whenever you want/);
+  assert.match(html, /data-command="remoteOpenSharedTerminal">/);
+  assert.match(html, /Remote Codex Terminal/);
+  assert.match(html, /Terminal work may appear on the phone only after it finishes/);
+  assert.match(html, /phone replies may not appear in the terminal/);
+  assert.match(html, /Turn Off and Unpair Devices/);
+  assert.match(html, /Phone looks out of date\?/);
+  assert.match(html, /data-command="restart"/);
+  assert.match(html, /cannot refresh or erase the phone's chat list/);
+  assert.match(html, /list icon is wrong/);
+  assert.doesNotMatch(html, /app-server|OpenAI relay|Unix socket|Remote environment/i);
   assert.doesNotMatch(html, /private-pairing-artifact/);
   assert.doesNotMatch(html, /<script>bad\(\)<\/script>/);
 });

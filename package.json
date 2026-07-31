@@ -1,8 +1,8 @@
 {
   "name": "codex-usage-status",
-  "displayName": "Codex Companion: Remote Control, Usage Status & Resets",
-  "description": "Control Codex remotely from ChatGPT, monitor usage status, get completion alerts, reopen chats, and manage reset credits in VS Code.",
-  "version": "1.1.0",
+  "displayName": "Codex Companion: ChatGPT Remote & Usage",
+  "description": "Pair ChatGPT Remote with Codex in VS Code, control work from your phone, and see usage, completion alerts, chats, and reset credits.",
+  "version": "1.2.1",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -59,7 +59,8 @@
     "onCommand:codexUsage.resetUsage",
     "onCommand:codexUsage.openSettings",
     "onCommand:codexUsage.openLogs",
-    "onCommand:codexUsage.openRemoteControl"
+    "onCommand:codexUsage.openRemoteControl",
+    "onCommand:codexUsage.openSharedCodexTerminal"
   ],
   "main": "./dist/src/extension.js",
   "contributes": {
@@ -70,7 +71,7 @@
       },
       {
         "command": "codexUsage.restartAppServer",
-        "title": "Codex Companion: Restart App Server"
+        "title": "Codex Companion: Restart Codex Connection"
       },
       {
         "command": "codexUsage.resetUsage",
@@ -86,7 +87,11 @@
       },
       {
         "command": "codexUsage.openRemoteControl",
-        "title": "Codex Companion: Set Up Remote Control"
+        "title": "Codex Companion: Pair Phone"
+      },
+      {
+        "command": "codexUsage.openSharedCodexTerminal",
+        "title": "Codex Companion: Open Remote Codex Terminal"
       }
     ],
     "configuration": {
@@ -141,7 +146,7 @@
           "type": "number",
           "default": 12000,
           "minimum": 1000,
-          "description": "Timeout for Codex app-server JSON-RPC requests."
+          "description": "How long Codex Companion waits for Codex to reply, in milliseconds."
         },
         "codexUsage.notifyUsageWarnings": {
           "type": "boolean",
@@ -191,7 +196,12 @@
         "codexUsage.remoteControlEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Opt in to Codex remote control through OpenAI's internet relay while VS Code is running. Pair and revoke ChatGPT devices from Codex Companion."
+          "description": "Let ChatGPT on your paired phone control Codex while VS Code is running."
+        },
+        "codexUsage.sharedRemoteHostEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "On Linux and macOS, open a Codex terminal that uses Companion's Remote host. The terminal and phone do not mirror each other live."
         }
       }
     }
@@ -200,13 +210,17 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.1.0.vsix",
+    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.2.1.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/vscode": "^1.90.0",
+    "@types/ws": "^8.18.1",
     "@vscode/vsce": "^3.2.1",
     "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
   }
 }

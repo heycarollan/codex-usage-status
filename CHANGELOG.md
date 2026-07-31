@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.1
+
+- Lead the Marketplace and GitHub presentation with ChatGPT Remote Control while keeping usage visible as the first compact status feature.
+- Add the branded Codex Companion icon and an explicit package-version badge to both README surfaces.
+- Keep the optional Remote Codex Terminal while stating prominently that it does not mirror the phone live.
+
+## 1.2.0
+
+- Add an opt-in Remote Codex Terminal on Linux and macOS that starts the supported Codex app-server on a private Unix socket and connects Codex Companion over WebSocket.
+- Run the official `codex --remote unix://...` terminal against Companion's app-server while stating clearly that the terminal and phone do not mirror each other's live activity.
+- Keep the default stdio host unchanged and state explicitly that the official VS Code Codex panel still uses a separate app-server and cannot be bridged through a supported API.
+- Secure each shared endpoint inside a random per-process directory with owner-only permissions, disable unsupported WebSocket compression, terminate the exact child process group, and remove the socket directory during shutdown.
+- Add regression coverage for shared WebSocket initialization, restart, ephemeral Remote disable, single-process lifecycle, and endpoint cleanup.
+- Rewrite Remote setup and settings in plain language, with a short three-step guide and clearer Pair, Terminal, Unpair, and phone-recovery actions.
+
+## 1.1.1
+
+- Keep Remote Control runtime-only inside Codex Companion and coordinate a single relay-owning VS Code extension host, preventing older or parallel Companion app-server processes from reconnecting through a persisted Codex preference.
+- Shut Remote Control down ephemerally before app-server restart or extension deactivation, wait for the old child to exit, and prevent late exit events from invalidating or orphaning the replacement process.
+- Refresh every page of paired controller devices before **Remove Remote Connection**, report incomplete cleanup honestly, and keep removal limited to the supported disable and device-revocation APIs.
+- Explain that the supported Codex app-server API cannot list or delete saved Remote environments or force-refresh the ChatGPT phone app's active-chat list, with supported recovery steps for stale phone state.
+- Document that live thread activity is app-server-process-local: computer chats running in another Codex/ChatGPT process can lag on the phone until reopened, and no supported cross-process status or event API exists.
+- Verify that Codex CLI 0.144.1 and the official VS Code extension's 0.146.0-alpha.9.2 bundle expose the same Remote lifecycle shape and reuse the existing environment across ephemeral disable, re-enable, and process restart.
+
 ## 1.1.0
 
 - Rename the Marketplace display name to **Codex Companion: Remote Control, Usage Status & Resets** while preserving the existing `synapticraft.codex-usage-status` identifier and upgrade path.

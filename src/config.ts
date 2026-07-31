@@ -17,6 +17,7 @@ export function getSettings(): ExtensionSettings {
     notifyNeedsInput: config.get("notifyNeedsInput", true),
     notificationMode: config.get("notificationMode", "vscode"),
     completionChatAction: config.get("completionChatAction", "exact"),
-    remoteControlEnabled: config.get("remoteControlEnabled", false)
+    remoteControlEnabled: config.get("remoteControlEnabled", false),
+    sharedRemoteHostEnabled: config.get("sharedRemoteHostEnabled", false)
   };
 }

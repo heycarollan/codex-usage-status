@@ -6,7 +6,6 @@
 .editorconfig
 CODE_OF_CONDUCT.md
 CONTRIBUTING.md
-node_modules/**
 src/**
 test/**
 docs/**

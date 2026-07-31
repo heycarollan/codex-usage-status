@@ -127,8 +127,8 @@ export function buildRemoteControlStatusBarPresentation(
   if (state.onboardingHighlighted) {
     return {
       text: "$(remote) Set up Remote",
-      tooltip: "New: set up full Codex Remote access from ChatGPT. Click to open the guided setup.",
-      accessibilityLabel: "Set up Codex Remote access",
+      tooltip: "Pair your phone with Codex.",
+      accessibilityLabel: "Pair your phone with Codex",
       warning: true
     };
   }
@@ -136,8 +136,8 @@ export function buildRemoteControlStatusBarPresentation(
   if (state.busy || state.status === "connecting") {
     return {
       text: "$(sync~spin) Remote",
-      tooltip: "Codex Remote is connecting. Click to open Remote Control settings.",
-      accessibilityLabel: "Codex Remote is connecting",
+      tooltip: "Remote is connecting.",
+      accessibilityLabel: "Remote is connecting",
       warning: false
     };
   }
@@ -145,8 +145,8 @@ export function buildRemoteControlStatusBarPresentation(
   if (!state.supported) {
     return {
       text: "$(warning) Remote",
-      tooltip: state.errorMessage ?? "This Codex executable does not support Remote Control.",
-      accessibilityLabel: "Codex Remote is unavailable",
+      tooltip: state.errorMessage ?? "This Codex version does not support Remote.",
+      accessibilityLabel: "Remote is unavailable",
       warning: true
     };
   }
@@ -154,8 +154,8 @@ export function buildRemoteControlStatusBarPresentation(
   if (state.status === "connected") {
     return {
       text: "$(remote) Remote: On",
-      tooltip: "Codex Remote is connected through OpenAI's relay. Click to manage access and paired devices.",
-      accessibilityLabel: "Codex Remote is connected",
+      tooltip: "Your phone can connect. Click to manage paired devices.",
+      accessibilityLabel: "Remote is connected",
       warning: false
     };
   }
@@ -163,16 +163,16 @@ export function buildRemoteControlStatusBarPresentation(
   if (state.status === "errored" || state.errorMessage) {
     return {
       text: "$(warning) Remote",
-      tooltip: state.errorMessage ?? "Codex Remote could not connect. Click to review setup.",
-      accessibilityLabel: "Codex Remote has a connection error",
+      tooltip: state.errorMessage ?? "Remote could not connect. Click for help.",
+      accessibilityLabel: "Remote has a connection error",
       warning: true
     };
   }
 
   return {
     text: "$(remote) Remote",
-    tooltip: "Codex Remote is off. Click to pair this computer with ChatGPT Remote.",
-    accessibilityLabel: "Codex Remote is off; click to set it up",
+    tooltip: "Remote is off. Click to pair your phone.",
+    accessibilityLabel: "Remote is off; click to pair your phone",
     warning: false
   };
 }
