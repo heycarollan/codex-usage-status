@@ -7,9 +7,9 @@
 <p align="center"><strong>Pair ChatGPT Remote with Codex in VS Code and control work from your phone.</strong></p>
 
 <p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status"><img src="https://badgen.net/vs-marketplace/v/synapticraft.codex-usage-status" alt="VS Code Marketplace version"></a>
-  <a href="https://github.com/heycarollan/codex-usage-status/releases/latest"><img src="https://badgen.net/github/release/heycarollan/codex-usage-status" alt="Latest GitHub release"></a>
-  <img src="https://badgen.net/badge/package/1.2.1/00695c" alt="Package version 1.2.1">
+  <a href="https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status"><img src="https://badgen.net/badge/Marketplace/V1/00695c" alt="Marketplace V1"></a>
+  <a href="https://github.com/heycarollan/codex-usage-status/releases/latest"><img src="https://badgen.net/badge/GitHub/V1/00695c" alt="GitHub V1"></a>
+  <img src="https://badgen.net/badge/Package/V1/00695c" alt="Package V1">
 </p>
 
 Remote Control is a headline feature, not an add-on: pair a phone, check connection state, manage paired devices, and remove access from one simple settings page. Codex usage remains the first at-a-glance status-bar feature, alongside completion alerts, chat navigation, and reset credits.
