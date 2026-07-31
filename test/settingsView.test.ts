@@ -119,6 +119,7 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.match(html, /Resets the current Codex rate limits\./);
   assert.match(html, /data-command="reset"/);
   assert.doesNotMatch(html, /data-command="reset" disabled/);
+  assert.match(html, /data-command="remoteRemove" disabled/);
 
   for (const key of [
     "refreshIntervalSeconds",
@@ -253,6 +254,9 @@ test("renders remote pairing and revocable devices without exposing raw markup",
   assert.match(html, /ABCD-1234&lt;script&gt;bad\(\)&lt;\/script&gt;/);
   assert.match(html, /Carol&#39;s phone/);
   assert.match(html, /data-command="remoteRevoke"/);
+  assert.match(html, /data-command="remoteRemove">/);
+  assert.match(html, /Remove Remote Connection/);
+  assert.match(html, /set it up again whenever you want/);
   assert.doesNotMatch(html, /private-pairing-artifact/);
   assert.doesNotMatch(html, /<script>bad\(\)<\/script>/);
 });

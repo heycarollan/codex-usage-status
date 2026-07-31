@@ -17,6 +17,7 @@ For Linux users who do not run VS Code, the GitHub documentation routes directly
 5. Copy the code into **Remote** in the ChatGPT mobile app.
 6. The extension polls the opaque pairing artifact until Codex reports it claimed, then refreshes the paired-device list.
 7. Revoke individual devices or disable the host connection from the same settings page.
+8. Use **Remove Remote Connection** for a confirmed cleanup that revokes every currently listed paired device and disables the host while preserving the setup entry point.
 
 The host computer must remain awake and online with VS Code and this extension running.
 
@@ -62,6 +63,7 @@ It listens only for `remoteControl/status/changed`. It does not accept remote re
 - No inbound TCP listener, raw app-server exposure, shell endpoint, filesystem endpoint, or arbitrary VS Code command execution.
 - No prompt, command, diff, or approval payload is proxied or logged by this extension. Those controls remain inside the official ChatGPT Remote client and Codex approval system.
 - Device revocation requires a local modal confirmation and an ID from the current Codex-provided device list.
+- Full connection removal requires a local modal confirmation, revokes only IDs from that same allowlisted list, disables the relay, and reports any partial revocation failure honestly.
 - Disabling the relay does not silently claim to revoke device grants; the UI states that grants persist until explicitly revoked.
 - Audit lines record enable, disable, code creation time, successful pairing, and revocation without recording codes, environment IDs, client IDs, prompts, or command contents.
 - Managed workspace policy can reject Remote Control; the extension reports the app-server error and does not bypass it.

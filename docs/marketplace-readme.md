@@ -30,6 +30,8 @@ Once paired, ChatGPT supplies the full Codex remote interface over OpenAI's inte
 
 The extension exposes no inbound network listener or raw app-server endpoint. Pairing artifacts remain in memory, expire automatically, and never enter extension logs. Remote availability can depend on the installed Codex version, ChatGPT rollout, account/workspace eligibility, and managed policy. The underlying `remoteControl/*` app-server API is currently experimental, and OpenAI's general Remote guide does not yet document IDE-based setup. This feature will require real-device pairing verification before release.
 
+Use **Remove Remote Connection** at the bottom of the section to disable the relay and revoke every currently listed paired device. The permanent Remote status-bar button lets you return and pair again later.
+
 ## Commands
 
 - `Codex Companion: Refresh Usage`

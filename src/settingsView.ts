@@ -588,6 +588,11 @@ function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: b
   const devices = state.clients.length > 0
     ? `<div class="card">${state.clients.map(renderRemoteControlDevice).join("")}</div>`
     : `<p class="muted">No paired controller devices were returned.</p>`;
+  const removeDisabled = state.busy || (
+    !configuredEnabled &&
+    state.status?.status === "disabled" &&
+    state.clients.length === 0
+  );
 
   return `${error}
     <div class="summary-grid">
@@ -617,7 +622,14 @@ function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: b
     </div>
     ${pairing}
     <h3>Paired devices</h3>
-    ${devices}`;
+    ${devices}
+    <article class="card credit">
+      <h3>Remove remote connection</h3>
+      <p>Disconnect this computer and revoke every paired device listed above. The Remote button remains available, so you can set it up again whenever you want.</p>
+      <div class="actions">
+        <button type="button" class="secondary" data-command="remoteRemove"${removeDisabled ? " disabled" : ""}>Remove Remote Connection</button>
+      </div>
+    </article>`;
 }
 
 function renderRemoteControlDevice(device: RemoteControlClientDevice): string {

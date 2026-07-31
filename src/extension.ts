@@ -677,6 +677,69 @@ async function disableRemoteControl(): Promise<void> {
   }
 }
 
+async function removeRemoteControl(): Promise<void> {
+  if (!client || remoteControlBusy) {
+    return;
+  }
+
+  const confirmation = await vscode.window.showWarningMessage(
+    "Remove this computer's Codex Remote connection? Remote access will be disabled and every listed paired device will be revoked. You can set it up again later.",
+    { modal: true },
+    "Remove Remote Connection"
+  );
+  if (confirmation !== "Remove Remote Connection") {
+    return;
+  }
+
+  remoteControlBusy = true;
+  renderSettingsPanel();
+
+  const failedDevices: RemoteControlClientDevice[] = [];
+  try {
+    const environmentId = remoteControlStatus?.environmentId ?? lastRemoteControlEnvironmentId;
+    if (environmentId) {
+      for (const device of remoteControlClients) {
+        try {
+          await client.revokeRemoteControlClient(environmentId, device.clientId);
+        } catch {
+          failedDevices.push(device);
+        }
+      }
+    }
+
+    await vscode.workspace
+      .getConfiguration("codexUsage")
+      .update("remoteControlEnabled", false, vscode.ConfigurationTarget.Global);
+    settings = getSettings();
+    applyRemoteControlStatus(await client.disableRemoteControl());
+    remoteControlPairing = null;
+    clearRemotePairingTimer();
+    remoteControlClients = failedDevices;
+    remoteControlError = failedDevices.length > 0
+      ? `${failedDevices.length} paired device${failedDevices.length === 1 ? "" : "s"} could not be revoked. Retry removal or re-enable Remote Control and revoke them individually.`
+      : null;
+
+    const revokedCount = remoteControlClients.length === 0
+      ? "All listed paired devices were revoked."
+      : "Some paired devices still need to be revoked.";
+    output.appendLine(
+      `Remote connection removed; ${failedDevices.length} device revocation${failedDevices.length === 1 ? "" : "s"} failed.`
+    );
+    const message = `Codex Remote is disconnected. ${revokedCount} You can set it up again from the Remote button.`;
+    if (failedDevices.length > 0) {
+      vscode.window.showWarningMessage(message);
+    } else {
+      vscode.window.showInformationMessage(message);
+    }
+  } catch (error) {
+    setRemoteControlError(error);
+    vscode.window.showErrorMessage(`Could not remove the Codex Remote connection: ${remoteControlError}`);
+  } finally {
+    remoteControlBusy = false;
+    renderSettingsPanel(true);
+  }
+}
+
 async function copyRemoteControlPairingCode(): Promise<void> {
   if (!remoteControlPairing || isPairingArtifactExpired(remoteControlPairing)) {
     remoteControlPairing = null;
@@ -917,6 +980,9 @@ async function handleSettingsMessage(panel: vscode.WebviewPanel, message: unknow
         return;
       case "remoteDisable":
         await disableRemoteControl();
+        return;
+      case "remoteRemove":
+        await removeRemoteControl();
         return;
       case "remoteCopyPairingCode":
         await copyRemoteControlPairingCode();
