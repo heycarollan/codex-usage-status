@@ -20,7 +20,7 @@ The extension talks to the local Codex app-server and reads:
 - Configurable VS Code and native Linux notifications for high usage, input/approval events, and completed turns. Completion notifications identify the chat, project, and Git branch when Codex provides them.
 - A configurable completion action that opens the exact completed local chat, opens the general Codex sidebar, or stays hidden. Exact-chat switching uses the OpenAI extension's current thread resource and is marked experimental until OpenAI documents a public API.
 - Reset-credit action with a confirmation prompt when Codex reports reset credits are available. When per-credit details are available, the extension explicitly uses the available credit closest to expiration.
-- Configurable refresh interval, warning threshold, and executable path.
+- Configurable refresh interval, warning threshold, and executable source.
 - The status-bar usage display and its tooltip action open the unified settings editor.
 
 ## Reset credits
@@ -40,8 +40,10 @@ The settings editor includes a **Use reset credit** button with the available co
 ## Requirements
 
 - VS Code, Cursor, Windsurf, or another VS Code-compatible editor.
-- Codex CLI installed and available as `codex`, or configured with `codexUsage.codexExecutable`.
+- Codex CLI installed and available as `codex`, configured with `codexUsage.codexExecutable`, or installed official [OpenAI Codex](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt) extension.
 - A Codex login that works with `codex app-server`.
+
+In Remote SSH, dev containers, and WSL, the `extension` executable source mode resolves the Codex extension and binary in the extension host environment. Install the official Codex extension in that environment; if its bundled executable cannot be resolved, select the `path` executable source and set `codexUsage.codexExecutable` explicitly.
 
 ## Settings
 
@@ -49,8 +51,9 @@ Click the Codex status-bar usage display to open **Codex Usage Settings**. It co
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `codexUsage.refreshIntervalSeconds` | `10` | How often to refresh usage. |
+| `codexUsage.codexExecutableSource` | `path` | Use the configured path, or automatically use the CLI bundled with the official OpenAI Codex extension. |
 | `codexUsage.codexExecutable` | `codex` | Path or command name for the Codex CLI. |
+| `codexUsage.refreshIntervalSeconds` | `10` | How often to refresh usage. |
 | `codexUsage.showExtraBuckets` | `true` | Show model-specific buckets like Codex Spark. |
 | `codexUsage.statusFormat` | `compact` | Show used percent or remaining percent. |
 | `codexUsage.warnAtPercent` | `90` | Highlight the status bar at this usage percentage. |

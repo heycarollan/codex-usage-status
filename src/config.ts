@@ -6,6 +6,7 @@ export function getSettings(): ExtensionSettings {
 
   return {
     refreshIntervalSeconds: config.get("refreshIntervalSeconds", 10),
+    codexExecutableSource: config.get("codexExecutableSource", "path"),
     codexExecutable: config.get("codexExecutable", "codex"),
     showExtraBuckets: config.get("showExtraBuckets", true),
     statusFormat: config.get("statusFormat", "compact"),

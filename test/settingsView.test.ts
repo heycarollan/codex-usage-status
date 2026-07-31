@@ -4,6 +4,7 @@ import { normalizeSettingUpdate, renderSettingsView } from "../src/settingsView"
 import type { ExtensionSettings, NormalizedUsageSnapshot } from "../src/types";
 
 const settings: ExtensionSettings = {
+  codexExecutableSource: "path",
   refreshIntervalSeconds: 10,
   codexExecutable: "codex",
   showExtraBuckets: true,
@@ -96,7 +97,7 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.match(html, /Codex Spark/);
   assert.match(html, /12%/);
   assert.match(html, /Lifetime tokens/);
-  assert.match(html, /123,456/);
+  assert.match(html, new RegExp((123456).toLocaleString()));
   assert.match(html, /Recent daily tokens/);
   assert.match(html, /Full reset/);
   assert.match(html, /Resets the current Codex rate limits\./);

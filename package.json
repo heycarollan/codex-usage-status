@@ -2,7 +2,7 @@
   "name": "codex-usage-status",
   "displayName": "Codex Usage Status",
   "description": "Track Codex usage and reset credits, get completion alerts, and jump back to completed chats from VS Code.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -77,6 +77,19 @@
     "configuration": {
       "title": "Codex Usage Status",
       "properties": {
+        "codexUsage.codexExecutableSource": {
+          "type": "string",
+          "enum": [
+            "path",
+            "extension"
+          ],
+          "enumDescriptions": [
+            "Use the path or command from Codex Executable.",
+            "Automatically use the Codex CLI bundled with the official OpenAI Codex extension."
+          ],
+          "default": "path",
+          "description": "Select where the Codex CLI executable is loaded from."
+        },
         "codexUsage.refreshIntervalSeconds": {
           "type": "number",
           "default": 10,
@@ -86,7 +99,7 @@
         "codexUsage.codexExecutable": {
           "type": "string",
           "default": "codex",
-          "description": "Path or command name for the Codex CLI executable."
+          "description": "Path or command name for the Codex CLI executable. Used when Codex Executable Source is Path."
         },
         "codexUsage.showExtraBuckets": {
           "type": "boolean",
@@ -167,7 +180,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --out dist/codex-usage-status-1.0.0.vsix",
+    "package": "vsce package --out dist/codex-usage-status-1.0.1.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
