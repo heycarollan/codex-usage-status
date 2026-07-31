@@ -7,6 +7,16 @@ import type {
   JsonRpcId,
   JsonRpcResponse
 } from "./types";
+import {
+  parseRemoteControlClientList,
+  parseRemoteControlPairingArtifact,
+  parseRemoteControlPairingClaimed,
+  parseRemoteControlStatus,
+  redactRemoteControlSecrets,
+  type RemoteControlClientList,
+  type RemoteControlPairingArtifact,
+  type RemoteControlStatusSnapshot
+} from "./remoteControl";
 
 export interface Logger {
   appendLine(message: string): void;
@@ -22,6 +32,7 @@ export interface AppServerEventHandlers {
   onRateLimitsUpdated?(): void;
   onTurnCompleted?(event: CodexTurnCompletedEvent): void;
   onNeedsUserInput?(event: CodexNeedsUserInputEvent): void;
+  onRemoteControlStatusChanged?(status: RemoteControlStatusSnapshot): void;
 }
 
 export interface CodexTurnCompletedEvent {
@@ -66,6 +77,7 @@ export class CodexAppServerClient {
   private nextId = 1;
   private readonly pending = new Map<JsonRpcId, PendingRequest<unknown>>();
   private initializePromise: Promise<void> | null = null;
+  private readonly remoteControlSensitiveValues = new Set<string>();
 
   constructor(
     private readonly codexExecutable: string,
@@ -82,6 +94,72 @@ export class CodexAppServerClient {
   async getTokenUsage(): Promise<GetAccountTokenUsageResponse> {
     await this.ensureInitialized();
     return this.request<GetAccountTokenUsageResponse>("account/usage/read", null);
+  }
+
+  async getRemoteControlStatus(): Promise<RemoteControlStatusSnapshot> {
+    await this.ensureInitialized();
+    return this.rememberRemoteControlStatus(
+      parseRemoteControlStatus(await this.request("remoteControl/status/read", {}))
+    );
+  }
+
+  async enableRemoteControl(): Promise<RemoteControlStatusSnapshot> {
+    await this.ensureInitialized();
+    return this.rememberRemoteControlStatus(
+      parseRemoteControlStatus(
+        await this.request("remoteControl/enable", { ephemeral: false })
+      )
+    );
+  }
+
+  async disableRemoteControl(): Promise<RemoteControlStatusSnapshot> {
+    await this.ensureInitialized();
+    return this.rememberRemoteControlStatus(
+      parseRemoteControlStatus(
+        await this.request("remoteControl/disable", { ephemeral: false })
+      )
+    );
+  }
+
+  async startRemoteControlPairing(): Promise<RemoteControlPairingArtifact> {
+    await this.ensureInitialized();
+    const artifact = parseRemoteControlPairingArtifact(
+      await this.request("remoteControl/pairing/start", { manualCode: true })
+    );
+    this.rememberRemoteControlValues(
+      artifact.pairingCode,
+      artifact.manualPairingCode,
+      artifact.environmentId
+    );
+    return artifact;
+  }
+
+  async isRemoteControlPairingClaimed(pairingCode: string): Promise<boolean> {
+    await this.ensureInitialized();
+    return parseRemoteControlPairingClaimed(
+      await this.request("remoteControl/pairing/status", { pairingCode })
+    );
+  }
+
+  async listRemoteControlClients(environmentId: string): Promise<RemoteControlClientList> {
+    await this.ensureInitialized();
+    const clients = parseRemoteControlClientList(
+      await this.request("remoteControl/client/list", {
+        environmentId,
+        limit: 100,
+        order: "desc"
+      })
+    );
+    this.rememberRemoteControlValues(
+      environmentId,
+      ...clients.data.map((client) => client.clientId)
+    );
+    return clients;
+  }
+
+  async revokeRemoteControlClient(environmentId: string, clientId: string): Promise<void> {
+    await this.ensureInitialized();
+    await this.request("remoteControl/client/revoke", { environmentId, clientId });
   }
 
   async consumeRateLimitResetCredit(
@@ -152,8 +230,8 @@ export class CodexAppServerClient {
     await this.request("initialize", {
       clientInfo: {
         name: "codex_usage_status_vscode",
-        title: "Codex Usage Status",
-        version: "1.0.0"
+        title: "Codex Companion",
+        version: "1.1.0"
       },
       capabilities: {
         experimentalApi: true
@@ -189,7 +267,7 @@ export class CodexAppServerClient {
     this.proc.stderr.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString().split(/\r?\n/)) {
         if (line.trim()) {
-          this.logger.appendLine(`[codex] ${line}`);
+          this.logger.appendLine(`[codex] ${this.redactRemoteControlMessage(line)}`);
         }
       }
     });
@@ -244,7 +322,9 @@ export class CodexAppServerClient {
     try {
       message = JSON.parse(line) as JsonRpcResponse<unknown>;
     } catch (error) {
-      this.logger.appendLine(`Ignoring non-JSON app-server output: ${line}`);
+      this.logger.appendLine(
+        `Ignoring non-JSON app-server output: ${this.redactRemoteControlMessage(line)}`
+      );
       return;
     }
 
@@ -272,12 +352,25 @@ export class CodexAppServerClient {
       return;
     }
 
+    if (message.method === "remoteControl/status/changed") {
+      try {
+        const status = this.rememberRemoteControlStatus(
+          parseRemoteControlStatus(message.params)
+        );
+        this.eventHandlers.onRemoteControlStatusChanged?.(status);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.appendLine(`Ignoring invalid remote-control status: ${detail}`);
+      }
+      return;
+    }
+
     if (typeof message.method === "string" && isNeedsInputMethod(message.method)) {
       const event = parseNeedsUserInputEvent(message.method, message.params);
       this.eventHandlers.onNeedsUserInput?.(event);
 
       if (message.id !== undefined) {
-        this.sendErrorResponse(message.id, -32601, `Codex Usage Status cannot answer ${message.method}.`);
+        this.sendErrorResponse(message.id, -32601, `Codex Companion cannot answer ${message.method}.`);
       }
       return;
     }
@@ -298,7 +391,7 @@ export class CodexAppServerClient {
     this.pending.delete(response.id);
 
     if (response.error) {
-      pending.reject(new Error(response.error.message));
+      pending.reject(new Error(this.redactRemoteControlMessage(response.error.message)));
       return;
     }
 
@@ -319,6 +412,31 @@ export class CodexAppServerClient {
     }
 
     this.proc.stdin.write(`${JSON.stringify({ id, error: { code, message } })}\n`);
+  }
+
+  private rememberRemoteControlStatus(
+    status: RemoteControlStatusSnapshot
+  ): RemoteControlStatusSnapshot {
+    this.rememberRemoteControlValues(
+      status.installationId,
+      status.environmentId
+    );
+    return status;
+  }
+
+  private rememberRemoteControlValues(...values: Array<string | null>): void {
+    for (const value of values) {
+      if (value) {
+        this.remoteControlSensitiveValues.add(value);
+      }
+    }
+  }
+
+  private redactRemoteControlMessage(message: string): string {
+    return redactRemoteControlSecrets(
+      message,
+      [...this.remoteControlSensitiveValues]
+    );
   }
 }
 

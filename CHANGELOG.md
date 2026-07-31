@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0
+
+- Rename the Marketplace display name to **Codex Companion: Usage & Remote** while preserving the existing `synapticraft.codex-usage-status` identifier and upgrade path.
+- Add search metadata for Codex Remote Control, ChatGPT Remote, Linux, headless, mobile, usage, notifications, and reset credits.
+- Split documentation by audience: GitHub leads with an official standalone Linux Remote setup that does not require VS Code, while the packaged Marketplace README focuses on the extension and links to the Linux route.
+- Add opt-in ChatGPT Remote setup backed by Codex's official internet relay and experimental `remoteControl/*` app-server API.
+- Create short-lived manual pairing codes from the unified settings editor without logging or persisting the pairing artifacts.
+- Show relay connection state and paired controller devices, with explicit per-device revocation.
+- Reconnect remote control only when `codexUsage.remoteControlEnabled` is enabled; keep it disabled by default and expose no local network listener.
+- Add the `Codex Companion: Set Up Remote Control` command and document the always-awake host requirement and rollout constraints.
+- Add a separate GitHub release badge so repository and Marketplace versions remain visually distinguishable.
+
 ## 1.0.1
 
 - Add an executable source setting that can automatically use the Codex CLI bundled with the official OpenAI Codex extension.

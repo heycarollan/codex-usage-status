@@ -15,6 +15,20 @@ import type {
   RateLimitResetCreditsSummary,
   RateLimitWindow
 } from "./types";
+import type {
+  RemoteControlClientDevice,
+  RemoteControlPairingArtifact,
+  RemoteControlStatusSnapshot
+} from "./remoteControl";
+
+export interface RemoteControlViewState {
+  supported: boolean;
+  busy: boolean;
+  status: RemoteControlStatusSnapshot | null;
+  pairing: RemoteControlPairingArtifact | null;
+  clients: RemoteControlClientDevice[];
+  errorMessage: string | null;
+}
 
 export interface SettingsViewState {
   cspSource: string;
@@ -22,6 +36,7 @@ export interface SettingsViewState {
   settings: ExtensionSettings;
   snapshot: NormalizedUsageSnapshot | null;
   errorMessage: string | null;
+  remoteControl: RemoteControlViewState;
 }
 
 export interface NormalizedSettingUpdate {
@@ -45,6 +60,7 @@ export function normalizeSettingUpdate(key: unknown, value: unknown): Normalized
     case "notifyUsageWarnings":
     case "notifyTurnComplete":
     case "notifyNeedsInput":
+    case "remoteControlEnabled":
       return typeof value === "boolean" ? { key, value } : null;
     case "statusFormat":
       return value === "compact" || value === "remaining" ? { key, value } : null;
@@ -62,7 +78,7 @@ export function normalizeSettingUpdate(key: unknown, value: unknown): Normalized
 }
 
 export function renderSettingsView(state: SettingsViewState): string {
-  const { cspSource, nonce, settings, snapshot, errorMessage } = state;
+  const { cspSource, nonce, settings, snapshot, errorMessage, remoteControl } = state;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -70,7 +86,7 @@ export function renderSettingsView(state: SettingsViewState): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${escapeAttribute(cspSource)} 'nonce-${escapeAttribute(nonce)}'; script-src 'nonce-${escapeAttribute(nonce)}';">
-  <title>Codex Usage Settings</title>
+  <title>Codex Companion</title>
   <style nonce="${escapeAttribute(nonce)}">
     :root { color-scheme: light dark; }
     body {
@@ -184,6 +200,24 @@ export function renderSettingsView(state: SettingsViewState): string {
       gap: 16px;
       justify-content: space-between;
     }
+    .pair-code {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      overflow-wrap: anywhere;
+    }
+    .device-row {
+      align-items: center;
+      border-top: 1px solid var(--vscode-panel-border);
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      padding: 12px 0;
+    }
+    .device-row:first-child { border-top: 0; padding-top: 0; }
+    .device-row:last-child { padding-bottom: 0; }
+    .device-row p { margin-bottom: 0; }
     #save-status {
       color: var(--vscode-descriptionForeground);
       min-height: 18px;
@@ -200,8 +234,8 @@ export function renderSettingsView(state: SettingsViewState): string {
   <main>
     <header>
       <div>
-        <h1>Codex Usage Settings</h1>
-        <p class="muted">Live usage, reset credits, and extension preferences in one place.</p>
+        <h1>Codex Companion</h1>
+        <p class="muted">Live usage, reset credits, remote access, and extension preferences in one place.</p>
       </div>
       <div class="actions" aria-label="Extension actions">
         <button type="button" data-command="refresh">Refresh</button>
@@ -222,6 +256,11 @@ export function renderSettingsView(state: SettingsViewState): string {
     <section aria-labelledby="account-heading">
       <h2 id="account-heading">Account</h2>
       ${renderAccount(snapshot)}
+    </section>
+
+    <section aria-labelledby="remote-control-heading">
+      <h2 id="remote-control-heading">Remote control</h2>
+      ${renderRemoteControl(remoteControl, settings.remoteControlEnabled)}
     </section>
 
     <section aria-labelledby="usage-settings-heading">
@@ -338,7 +377,11 @@ export function renderSettingsView(state: SettingsViewState): string {
 
     for (const button of document.querySelectorAll("[data-command]")) {
       button.addEventListener("click", () => {
-        vscode.postMessage({ type: "command", command: button.dataset.command });
+        vscode.postMessage({
+          type: "command",
+          command: button.dataset.command,
+          clientId: button.dataset.clientId
+        });
       });
     }
 
@@ -480,6 +523,87 @@ function renderAccount(snapshot: NormalizedUsageSnapshot | null): string {
           ? `<pre>${escapeHtml(formatRecentDailyUsage(recentDaily))}</pre>`
           : `<p class="muted">Daily token data is unavailable.</p>`}
       </div>
+    </div>`;
+}
+
+function renderRemoteControl(state: RemoteControlViewState, configuredEnabled: boolean): string {
+  const disabled = state.busy ? " disabled" : "";
+  const status = state.status?.status ?? (state.supported ? "disabled" : "unavailable");
+  const statusLabel = status === "connected"
+    ? "Connected to OpenAI relay"
+    : status === "connecting"
+      ? "Connecting to OpenAI relay"
+      : status === "errored"
+        ? "Connection error"
+        : status === "disabled"
+          ? "Disabled"
+          : "Unavailable";
+  const pairDisabled = state.busy || !state.supported;
+  const pairLabel = configuredEnabled ? "Create pairing code" : "Enable and create pairing code";
+  const error = state.errorMessage
+    ? `<div class="notice"><strong>Remote control unavailable.</strong> ${escapeHtml(state.errorMessage)}</div>`
+    : "";
+  const pairing = state.pairing
+    ? `<article class="card">
+        <h3>Manual pairing code</h3>
+        <p class="pair-code">${escapeHtml(state.pairing.manualPairingCode)}</p>
+        <p class="description">Open <strong>Remote</strong> in the ChatGPT mobile app, add this computer, and enter the code. It expires ${escapeHtml(new Date(state.pairing.expiresAt * 1000).toLocaleString())}.</p>
+        <div class="actions">
+          <button type="button" data-command="remoteCopyPairingCode">Copy pairing code</button>
+        </div>
+      </article>`
+    : "";
+  const devices = state.clients.length > 0
+    ? `<div class="card">${state.clients.map(renderRemoteControlDevice).join("")}</div>`
+    : `<p class="muted">No paired controller devices were returned.</p>`;
+
+  return `${error}
+    <div class="summary-grid">
+      <div class="card">
+        <h3>Connection</h3>
+        <dl>
+          <dt>Status</dt><dd>${escapeHtml(statusLabel)}</dd>
+          ${state.status?.serverName ? `<dt>Computer</dt><dd>${escapeHtml(state.status.serverName)}</dd>` : ""}
+        </dl>
+        ${renderCheckboxSetting(
+          "remoteControlEnabled",
+          "Enable remote access",
+          configuredEnabled,
+          "Reconnect through OpenAI's secure internet relay whenever this extension starts."
+        )}
+        <div class="actions">
+          <button type="button" data-command="remotePair"${pairDisabled ? " disabled" : ""}>${pairLabel}</button>
+          <button type="button" class="secondary" data-command="remoteRefresh"${disabled}>Refresh</button>
+          <button type="button" class="secondary" data-command="remoteDisable"${configuredEnabled && !state.busy ? "" : " disabled"}>Disable</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>How it works</h3>
+        <p>Pair once, then use the ChatGPT mobile app from any internet connection to start or continue chats, send instructions, review outputs, and approve or reject actions.</p>
+        <p class="description">The computer must remain awake, online, and running VS Code. Pairing is opt-in. No local port or raw app-server endpoint is exposed.</p>
+      </div>
+    </div>
+    ${pairing}
+    <h3>Paired devices</h3>
+    ${devices}`;
+}
+
+function renderRemoteControlDevice(device: RemoteControlClientDevice): string {
+  const name = device.displayName ?? device.deviceModel ?? device.deviceType ?? "ChatGPT device";
+  const details = [device.platform, device.osVersion, device.appVersion ? `ChatGPT ${device.appVersion}` : null]
+    .filter((value): value is string => Boolean(value))
+    .join(" · ");
+  const lastSeen = device.lastSeenAt
+    ? `Last seen ${new Date(device.lastSeenAt * 1000).toLocaleString()}`
+    : "Last-seen time unavailable";
+
+  return `<div class="device-row">
+      <div>
+        <strong>${escapeHtml(name)}</strong>
+        ${details ? `<p class="description">${escapeHtml(details)}</p>` : ""}
+        <p class="description">${escapeHtml(lastSeen)}</p>
+      </div>
+      <button type="button" class="secondary" data-command="remoteRevoke" data-client-id="${escapeAttribute(device.clientId)}">Revoke</button>
     </div>`;
 }
 
