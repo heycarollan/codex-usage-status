@@ -86,7 +86,6 @@ export function activate(context: vscode.ExtensionContext): void {
   createClient();
   registerCommands(context);
   updateRemoteStatusItem();
-  remoteStatusItem.show();
   void showRemoteControlOnboarding(context);
   void syncRemoteControlSetting();
 
@@ -1202,6 +1201,11 @@ function renderSettingsPanel(focusRemoteControl = false): void {
 
 function updateRemoteStatusItem(): void {
   if (!remoteStatusItem) {
+    return;
+  }
+
+  if (!settings.showRemoteStatusBarButton) {
+    remoteStatusItem.hide();
     return;
   }
 

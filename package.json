@@ -198,6 +198,11 @@
           "default": false,
           "description": "Let ChatGPT on your paired phone control Codex while VS Code is running."
         },
+        "codexUsage.showRemoteStatusBarButton": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Remote button in the VS Code status bar."
+        },
         "codexUsage.sharedRemoteHostEnabled": {
           "type": "boolean",
           "default": false,

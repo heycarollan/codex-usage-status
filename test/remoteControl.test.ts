@@ -10,7 +10,7 @@ import {
   redactRemoteControlSecrets
 } from "../src/remoteControl";
 
-test("presents a persistent Remote status-bar action for onboarding and connection state", () => {
+test("presents a Remote status-bar action for onboarding and connection state", () => {
   assert.deepEqual(
     buildRemoteControlStatusBarPresentation({
       supported: true,

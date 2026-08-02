@@ -17,6 +17,7 @@ const settings: ExtensionSettings = {
   notificationMode: "vscode",
   completionChatAction: "exact",
   remoteControlEnabled: false,
+  showRemoteStatusBarButton: true,
   sharedRemoteHostEnabled: false
 };
 

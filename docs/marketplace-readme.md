@@ -25,7 +25,7 @@ Remote Control is a main feature: pair your phone, check whether the host is con
 - Open the exact completed local Codex chat, the general Codex sidebar, or no chat action.
 - Use the available reset credit nearest expiration after a modal confirmation.
 - On Linux or macOS, optionally open the official Codex terminal against Companion's private local app-server socket. It does not mirror the phone live.
-- Open Remote setup directly from a persistent status-bar button beside usage, with one-time first-install guidance and no Command Palette step.
+- Open Remote setup from a status-bar button beside usage, or hide that button with a simple settings checkbox.
 
 ## Set up ChatGPT Remote
 
@@ -42,7 +42,7 @@ Once paired, ChatGPT connects to Codex Companion's app-server over OpenAI's inte
 
 The extension exposes no inbound network listener. Default mode uses stdio; optional shared-host mode creates an owner-readable Unix socket inside a random owner-only directory and opens no TCP port. Pairing artifacts remain in memory, expire automatically, and never enter extension logs. One Companion extension host owns the relay at a time so parallel VS Code windows do not start competing Remote connections. Remote availability can depend on the installed Codex version, ChatGPT rollout, account/workspace eligibility, and managed policy. The underlying `remoteControl/*` app-server API is currently experimental, and OpenAI's general Remote guide does not yet document IDE-based setup.
 
-Use **Remove Remote Connection** at the bottom of the section to refresh and revoke the supported paired-device list, then disable the relay. The permanent Remote status-bar button lets you return and pair again later.
+Use **Remove Remote Connection** at the bottom of the section to refresh and revoke the supported paired-device list, then disable the relay. If you do not want the Remote status-bar button, turn off **Show Remote button in the status bar** in settings; this does not disconnect or unpair anything.
 
 ### Optional Remote Codex Terminal
 
@@ -84,6 +84,7 @@ Restart and re-pair steps can recover the relay but cannot merge separate client
 | `codexUsage.notificationMode` | `vscode` | Use VS Code, native Linux, or both notification paths. |
 | `codexUsage.completionChatAction` | `exact` | Open the exact chat, sidebar, or no action. |
 | `codexUsage.remoteControlEnabled` | `false` | Let one Companion window reconnect to OpenAI's Remote Control relay while VS Code runs. |
+| `codexUsage.showRemoteStatusBarButton` | `true` | Show or hide the Remote status-bar button without changing the connection. |
 | `codexUsage.sharedRemoteHostEnabled` | `false` | On Linux or macOS, enable the optional Remote Codex Terminal. It does not mirror the phone live. |
 
 ## Requirements and privacy

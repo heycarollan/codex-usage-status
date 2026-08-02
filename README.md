@@ -66,7 +66,7 @@ The extension talks to the local Codex app-server and reads:
 ## VS Code features
 
 - Status bar display: `Codex: 5h N/A · 7d 9%` when Codex reports only a 7-day window. A 5-hour percentage appears automatically when the API provides that window.
-- A dedicated **Remote** status-bar button beside usage. It shows connection state and opens the Remote Control section directly—no Command Palette step required.
+- A dedicated **Remote** status-bar button beside usage. It shows connection state, opens Remote settings directly, and can be hidden with a checkbox.
 - Readable hover tooltip with separate usage windows, reset times, per-credit grant and expiration details, account, and token sections.
 - Unified Codex Companion editor with live account, token, bucket, and reset-credit details.
 - Manual refresh and app-server restart commands.
@@ -100,7 +100,7 @@ Remote control is disabled by default. After installation, Codex Companion shows
 
 The extension does not create a public listener or operate a separate relay. Its default mode uses app-server stdio. Optional shared-host mode creates only an owner-readable local Unix socket in a random owner-only directory; it never opens a TCP port. Pairing codes stay in memory until claimed or expired and are never written to extension logs. Paired devices can be revoked individually. Only one Codex Companion extension host owns Remote at a time; other VS Code windows remain disconnected and take over after the owner exits.
 
-If you no longer want the connection, use **Remove Remote Connection** at the bottom of the Remote Control section. After a modal confirmation, Codex Companion refreshes the complete supported device list, revokes those controllers, and disables the relay. The status-bar button remains available so you can set up Remote again later.
+If you no longer want the connection, use **Remove Remote Connection** at the bottom of the Remote Control section. After a modal confirmation, Codex Companion refreshes the complete supported device list, revokes those controllers, and disables the relay. You can also hide the Remote status-bar button without changing the connection or paired devices.
 
 ### Optional Remote Codex Terminal
 
@@ -146,6 +146,7 @@ Click the Codex status-bar usage display to open **Codex Companion**. It combine
 | `codexUsage.notificationMode` | `vscode` | Use VS Code notifications, native Linux notifications, or both. |
 | `codexUsage.completionChatAction` | `exact` | Open the exact completed chat (experimental), open the Codex sidebar, or show no chat action. |
 | `codexUsage.remoteControlEnabled` | `false` | Opt in to one Companion window reconnecting through OpenAI's remote-control relay while VS Code runs. |
+| `codexUsage.showRemoteStatusBarButton` | `true` | Show or hide the Remote button in the status bar without changing the Remote connection. |
 | `codexUsage.sharedRemoteHostEnabled` | `false` | On Linux or macOS, enable the optional Remote Codex Terminal. It does not mirror the phone or VS Code Codex panel live. |
 
 ## Notifications

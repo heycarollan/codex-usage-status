@@ -17,6 +17,7 @@ const settings: ExtensionSettings = {
   notificationMode: "vscode",
   completionChatAction: "exact",
   remoteControlEnabled: false,
+  showRemoteStatusBarButton: true,
   sharedRemoteHostEnabled: false
 };
 
@@ -124,6 +125,8 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.match(html, /data-command="remoteRemove" disabled/);
   assert.match(html, /data-command="remoteOpenSharedTerminal" disabled/);
   assert.match(html, /Enable Remote Codex Terminal/);
+  assert.match(html, /Show Remote button in the status bar/);
+  assert.match(html, /id="showRemoteStatusBarButton" type="checkbox" checked/);
   assert.match(html, /does not mirror the phone live/);
   assert.match(html, /Quick setup/);
   assert.doesNotMatch(html, /Full live updates|Share live updates/);
@@ -142,6 +145,7 @@ test("renders usage, reset details, actions, and every configurable setting", ()
     "notificationMode",
     "completionChatAction",
     "remoteControlEnabled",
+    "showRemoteStatusBarButton",
     "sharedRemoteHostEnabled"
   ]) {
     assert.match(html, new RegExp(`data-setting="${key}"`));
@@ -182,6 +186,26 @@ test("hides model-specific buckets when disabled", () => {
   assert.match(html, /Include model-specific buckets in usage details/);
 });
 
+test("renders the Remote status-bar button setting as unchecked when hidden", () => {
+  const html = renderSettingsView({
+    cspSource: "vscode-webview://test",
+    nonce: "nonce-value",
+    settings: { ...settings, showRemoteStatusBarButton: false },
+    snapshot,
+    errorMessage: null,
+    remoteControl
+  });
+
+  assert.match(
+    html,
+    /id="showRemoteStatusBarButton" type="checkbox" data-setting="showRemoteStatusBarButton"/
+  );
+  assert.doesNotMatch(
+    html,
+    /id="showRemoteStatusBarButton" type="checkbox" checked/
+  );
+});
+
 test("validates settings messages before updating VS Code configuration", () => {
   assert.deepEqual(
     normalizeSettingUpdate("refreshIntervalSeconds", 15.4),
@@ -202,6 +226,10 @@ test("validates settings messages before updating VS Code configuration", () => 
   assert.deepEqual(
     normalizeSettingUpdate("remoteControlEnabled", true),
     { key: "remoteControlEnabled", value: true }
+  );
+  assert.deepEqual(
+    normalizeSettingUpdate("showRemoteStatusBarButton", false),
+    { key: "showRemoteStatusBarButton", value: false }
   );
   assert.deepEqual(
     normalizeSettingUpdate("sharedRemoteHostEnabled", true),

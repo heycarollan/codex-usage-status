@@ -63,6 +63,7 @@ export function normalizeSettingUpdate(key: unknown, value: unknown): Normalized
     case "notifyTurnComplete":
     case "notifyNeedsInput":
     case "remoteControlEnabled":
+    case "showRemoteStatusBarButton":
     case "sharedRemoteHostEnabled":
       return typeof value === "boolean" ? { key, value } : null;
     case "statusFormat":
@@ -277,6 +278,7 @@ export function renderSettingsView(state: SettingsViewState): string {
       ${renderRemoteControl(
         remoteControl,
         settings.remoteControlEnabled,
+        settings.showRemoteStatusBarButton,
         settings.sharedRemoteHostEnabled
       )}
     </section>
@@ -569,6 +571,7 @@ function renderAccount(snapshot: NormalizedUsageSnapshot | null): string {
 function renderRemoteControl(
   state: RemoteControlViewState,
   configuredEnabled: boolean,
+  showStatusBarButton: boolean,
   sharedHostEnabled: boolean
 ): string {
   const disabled = state.busy ? " disabled" : "";
@@ -619,6 +622,12 @@ function renderRemoteControl(
           "Keep Remote on",
           configuredEnabled,
           "Reconnect your paired phone when VS Code starts. Only one VS Code window can use Remote at a time."
+        )}
+        ${renderCheckboxSetting(
+          "showRemoteStatusBarButton",
+          "Show Remote button in the status bar",
+          showStatusBarButton,
+          "Turn this off to hide the button. Remote and paired devices keep their current state."
         )}
         <div class="actions">
           <button type="button" data-command="remotePair"${pairDisabled ? " disabled" : ""}>${pairLabel}</button>

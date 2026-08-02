@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add a simple setting to hide the Remote status-bar button without turning off Remote or unpairing devices.
+
 ## 1.2.2 — Codex Companion V1
 
 - Lead the Marketplace and GitHub presentation with ChatGPT Remote Control while keeping usage visible as the first compact status feature.
