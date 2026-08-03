@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.5
+
+- Add a prominent GitHub and Marketplace guide showing that a controllable chat must be started from the phone's ChatGPT **Remote** screen after selecting the Companion host.
+- State that Companion cannot attach to or take over an already-running official VS Code Codex panel, normal ChatGPT, terminal, or unrelated Codex chat.
+- Document the single relay-owning extension host and advise against running a separate standalone Remote host for the same Companion connection.
+
 ## 1.2.4
 
 - Replace promotional Remote feature language in the GitHub and Marketplace descriptions with a neutral summary of ChatGPT Remote access, Codex usage status, completion alerts, chat navigation, and reset credits.

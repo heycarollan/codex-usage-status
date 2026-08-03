@@ -16,6 +16,19 @@ Codex Companion is a VS Code extension for Codex usage status and optional ChatG
 
 You can also use the official standalone Codex build as an always-available Linux Remote host without VS Code.
 
+## Where to start a Remote chat
+
+To control a Codex chat from the phone:
+
+1. Open the project workspace in the VS Code window that will remain online.
+2. In Codex Companion, enable Remote access, pair the phone, and wait for the connection state to show **Connected**.
+3. On the phone, open ChatGPT, select **Remote**, choose the Companion host, and start the chat from that Remote screen.
+4. Continue using that same Remote chat for prompts, questions, outputs, diffs, and approvals.
+
+The chat must belong to the Companion Remote host. A chat already running in the official VS Code Codex panel, a normal ChatGPT chat, another terminal, or another Codex process cannot be attached to Companion or taken over from the phone. To make existing work remote-controllable, start a new chat from **Remote** and provide the relevant context there.
+
+Keep the selected VS Code window, extension host, and computer running, awake, and online. Companion coordinates one relay-owning extension host across VS Code windows; do not also start a separate standalone `codex remote-control` host for the same Companion connection.
+
 ## Choose your setup
 
 ### VS Code extension on Linux, macOS, or Windows

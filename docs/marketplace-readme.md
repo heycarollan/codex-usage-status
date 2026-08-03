@@ -14,6 +14,19 @@
 
 Codex Companion is a VS Code extension for Codex usage status and optional ChatGPT Remote access. Remote access uses a Companion-managed Codex host and includes connection state, paired-device management, and access removal. The extension also provides completion alerts, chat navigation, and reset-credit details.
 
+## Where to start a Remote chat
+
+To control a Codex chat from the phone:
+
+1. Open the project workspace in the VS Code window that will remain online.
+2. In Codex Companion, enable Remote access, pair the phone, and wait for **Connected**.
+3. On the phone, open ChatGPT, select **Remote**, choose the Companion host, and start the chat from that Remote screen.
+4. Continue using that same Remote chat for prompts, questions, outputs, diffs, and approvals.
+
+The chat must belong to the Companion Remote host. A chat already running in the official VS Code Codex panel, a normal ChatGPT chat, another terminal, or another Codex process cannot be attached to Companion or taken over from the phone. To make existing work remote-controllable, start a new chat from **Remote** and provide the relevant context there.
+
+Keep the selected VS Code window and computer running, awake, and online. Companion coordinates one relay-owning extension host across VS Code windows; do not also start a separate standalone `codex remote-control` host for the same Companion connection.
+
 > **Standalone Linux Remote host:** This project documents the official standalone Codex Remote host. See the [Linux setup on GitHub](https://github.com/heycarollan/codex-usage-status#linux-remote-control-without-vs-code). It does not require the VS Code extension or a separate desktop controller.
 
 > **Desktop host with Linux over SSH:** The ChatGPT desktop app on macOS or Windows can host a Remote session connected to a Linux project over SSH. Chats run by that desktop host can provide live steering, streaming output, questions, and approvals from Remote. It cannot take over a chat already running in the VS Code Codex panel. The [GitHub guide](https://github.com/heycarollan/codex-usage-status#more-complete-remote-continuity-desktop-host--linux-over-ssh) explains the boundary and optional Tailscale transport.
