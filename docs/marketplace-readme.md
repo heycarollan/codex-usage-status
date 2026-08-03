@@ -4,7 +4,7 @@
 
 <h1 align="center">Codex Companion: ChatGPT Remote & Usage</h1>
 
-<p align="center"><strong>Pair ChatGPT Remote with a Companion-managed Codex host in VS Code.</strong></p>
+<p align="center"><strong>ChatGPT Remote and Codex usage status for VS Code.</strong></p>
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=synapticraft.codex-usage-status"><img src="https://badgen.net/badge/Marketplace/V1/00695c" alt="Marketplace V1"></a>
@@ -12,11 +12,11 @@
   <img src="https://badgen.net/badge/Package/V1/00695c" alt="Package V1">
 </p>
 
-Remote Control is a main feature: pair your phone with Companion's Codex host, check whether it is connected, manage paired devices, and remove access from one simple settings page. Codex usage stays visible in the status bar, with completion alerts, chat navigation, and reset credits close at hand.
+Codex Companion is a VS Code extension for Codex usage status and optional ChatGPT Remote access. Remote access uses a Companion-managed Codex host and includes connection state, paired-device management, and access removal. The extension also provides completion alerts, chat navigation, and reset-credit details.
 
-> **Linux without VS Code?** This project also documents the official standalone Codex Remote host. Use the [one-block Linux setup on GitHub](https://github.com/heycarollan/codex-usage-status#linux-remote-control-without-vs-code)—no VS Code extension or separate desktop controller is required.
+> **Standalone Linux Remote host:** This project documents the official standalone Codex Remote host. See the [Linux setup on GitHub](https://github.com/heycarollan/codex-usage-status#linux-remote-control-without-vs-code). It does not require the VS Code extension or a separate desktop controller.
 
-> **Want the more complete supported Remote experience?** Use the ChatGPT desktop app on macOS or Windows as the host and connect that app to the Linux project over SSH. Chats run by that desktop host can provide live steering, streaming output, questions, and approvals from Remote. It still cannot take over a chat already running in the VS Code Codex panel. The [GitHub guide](https://github.com/heycarollan/codex-usage-status#more-complete-remote-continuity-desktop-host--linux-over-ssh) explains the boundary and the optional Tailscale path; Companion is developing clearer guided setup for it.
+> **Desktop host with Linux over SSH:** The ChatGPT desktop app on macOS or Windows can host a Remote session connected to a Linux project over SSH. Chats run by that desktop host can provide live steering, streaming output, questions, and approvals from Remote. It cannot take over a chat already running in the VS Code Codex panel. The [GitHub guide](https://github.com/heycarollan/codex-usage-status#more-complete-remote-continuity-desktop-host--linux-over-ssh) explains the boundary and optional Tailscale transport.
 
 ## Features
 
@@ -33,7 +33,7 @@ Remote Control is a main feature: pair your phone with Companion's Codex host, c
 
 Remote access is disabled by default.
 
-When ChatGPT Remote is available for the account, the guided flow is designed to take about a minute:
+When ChatGPT Remote is available for the account, use the following flow:
 
 1. Select the **Remote** button beside Codex usage in the status bar. On first install, Codex Companion highlights it and shows a one-time setup message.
 2. Select **Enable and create pairing code**.
