@@ -7,7 +7,8 @@ import {
   parseRemoteControlPairingArtifact,
   parseRemoteControlPairingClaimed,
   parseRemoteControlStatus,
-  redactRemoteControlSecrets
+  redactRemoteControlSecrets,
+  waitForRemoteControlConnection
 } from "../src/remoteControl";
 
 test("presents a Remote status-bar action for onboarding and connection state", () => {
@@ -21,8 +22,8 @@ test("presents a Remote status-bar action for onboarding and connection state", 
     }),
     {
       text: "$(remote) Set up Remote",
-      tooltip: "Pair your phone with Codex.",
-      accessibilityLabel: "Pair your phone with Codex",
+      tooltip: "Pair your phone with Companion's Codex host.",
+      accessibilityLabel: "Pair your phone with Companion's Codex host",
       warning: true
     }
   );
@@ -150,4 +151,47 @@ test("redacts remote-control pairing and device identifiers from log messages", 
     ),
     "Pair [redacted] for [redacted] and [redacted]; [redacted] expires soon."
   );
+});
+
+test("waits through a transient online-host conflict while Remote reconnects", async () => {
+  const statuses = [
+    parseRemoteControlStatus({
+      status: "errored",
+      serverName: "workstation",
+      installationId: "installation-1",
+      environmentId: "environment-1"
+    }),
+    parseRemoteControlStatus({
+      status: "connecting",
+      serverName: "workstation",
+      installationId: "installation-1",
+      environmentId: "environment-1"
+    }),
+    parseRemoteControlStatus({
+      status: "connected",
+      serverName: "workstation",
+      installationId: "installation-1",
+      environmentId: "environment-1"
+    })
+  ];
+  const observed: string[] = [];
+
+  const result = await waitForRemoteControlConnection(
+    parseRemoteControlStatus({
+      status: "errored",
+      serverName: "workstation",
+      installationId: "installation-1",
+      environmentId: "environment-1"
+    }),
+    async () => statuses.shift()!,
+    {
+      attempts: 4,
+      delayMs: 0,
+      pause: async () => {},
+      onStatus: (status) => observed.push(status.status)
+    }
+  );
+
+  assert.equal(result.status, "connected");
+  assert.deepEqual(observed, ["errored", "connecting", "connected"]);
 });

@@ -8,6 +8,8 @@ The extension does not implement a second relay, browser client, shell proxy, or
 
 For Linux users who do not run VS Code, the GitHub documentation routes directly to Codex's official standalone installer and managed `codex remote-control` daemon. This is a separate distribution path for the same upstream Remote Control system, not a second Synapticraft desktop application or relay.
 
+For users who prioritize the complete supported Remote experience over the one-minute extension setup, the product documentation routes to the ChatGPT desktop app on macOS or Windows with the Linux project added over SSH. Tailscale may provide the private desktop-to-Linux SSH transport across networks, but it is not the phone relay. Chats must run in the desktop host; this architecture does not adopt live VS Code Codex-panel or unrelated CLI chats.
+
 ## User flow
 
 1. Select the persistent **Remote** status-bar button beside usage. First install highlights the button and offers a one-click setup message.
@@ -16,9 +18,10 @@ For Linux users who do not run VS Code, the GitHub documentation routes directly
 4. The extension requests a short-lived manual pairing code and displays it locally.
 5. Copy the code into **Remote** in the ChatGPT mobile app.
 6. The extension polls the opaque pairing artifact until Codex reports it claimed, then refreshes the paired-device list.
-7. Revoke individual devices or disable the host connection from the same settings page.
-8. Optionally enable the shared host on Linux or macOS and open the **Remote Codex Terminal**. It uses Companion's app-server but does not mirror the phone live.
-9. Use **Remove Remote Connection** for a confirmed cleanup that refreshes every page of controller devices, revokes the returned grants, and disables the local relay while preserving the setup entry point.
+7. Start a new chat from Remote on the phone and keep using that Remote chat for steering, questions, outputs, diffs, and approvals. Companion cannot take over a chat already running in the official VS Code Codex panel or another Codex process.
+8. Revoke individual devices or disable the host connection from the same settings page.
+9. Optionally enable the shared host on Linux or macOS and open the **Remote Codex Terminal**. It uses Companion's app-server but does not mirror the phone live.
+10. Use **Remove Remote Connection** for a confirmed cleanup that refreshes every page of controller devices, revokes the returned grants, and disables the local relay while preserving the setup entry point.
 
 The host computer must remain awake and online with VS Code and this extension running. Only one Companion extension host per OS user owns Remote at a time. A second VS Code window stays disconnected and retries lease acquisition during normal Remote refreshes.
 
@@ -56,10 +59,11 @@ The generated experimental schema exposes no Remote environment list, delete, un
 ## Lifecycle ownership
 
 - Codex Companion keeps `codexUsage.remoteControlEnabled` as its durable opt-in and invokes `remoteControl/enable` with `ephemeral: true`. It invokes a durable disable once per app-server client to migrate and clear the 1.1.0 preference that otherwise makes every same-named app-server auto-connect.
-- A local per-user lease contains only an extension-host PID and random token. It prevents parallel VS Code windows and isolated test profiles from opening competing relay connections. A dead owner's lease is reclaimed.
+- A local per-user lease contains an extension-host PID and random token plus, while running, the spawned app-server PID and a separate random ownership marker. It prevents parallel VS Code windows and isolated test profiles from opening competing relay connections. A dead owner's lease is reclaimed.
+- On Linux, the replacement owner verifies the recorded app-server marker against `/proc/<pid>/environ` before signaling that exact detached process group. This cleans up a crash-surviving Codex host without trusting a stale PID or killing unrelated Codex processes. A transient relay conflict is retried while the old registration clears.
 - Restart and deactivation request `remoteControl/disable` with `ephemeral: true`. Stdio mode closes app-server stdin; shared mode closes the WebSocket and signals the exact detached child process group. Both paths wait for exit and use a bounded exact-process fallback.
 - Child exit/error handlers are bound to the process that emitted them. A late exit from an old process cannot clear the reference, initialization promise, or pending requests for its replacement.
-- Codex persists and reuses the same enrollment for the Companion client name. Live comparison on Codex CLI 0.144.1 and the official VS Code extension's 0.146.0-alpha.9.2 bundle showed the same environment before and after ephemeral disable/re-enable and process restart; neither schema adds a cleanup API.
+- Codex persists and reuses the same enrollment for the Companion client name. Live comparison on Codex CLI 0.144.1, current stable CLI 0.146.0, and the official VS Code extension's 0.146.0-alpha.9.2 bundle showed the same environment before and after ephemeral disable/re-enable and process restart; neither schema adds a cleanup API.
 - Shared mode creates a random runtime directory with mode `0700`; Codex creates the Unix socket with mode `0600`. WebSocket compression is disabled to match the supported Unix listener. Restart reuses the endpoint only after the old child exits, and final shutdown removes the socket and empty directory.
 
 ## Live activity limitation
@@ -95,6 +99,7 @@ The extension must not claim to fix this boundary. Relay restart and re-pair act
 - `codexUsage.sharedRemoteHostEnabled` defaults to `false` and is available only on Linux and macOS.
 - The unified settings editor shows relay state, the local server name, the short-lived manual code, paired devices, explicit refresh/disable/revoke actions, and accurate stale-phone-list recovery guidance.
 - The settings editor and **Codex Companion: Open Remote Codex Terminal** command state that the terminal is a separate client and does not mirror the phone or official VS Code Codex panel live.
+- Quick Setup tells users before pairing that the reliable workflow starts a new chat from Remote and that Companion cannot take over a chat already running in the official VS Code Codex panel.
 - The persistent **Remote** status-bar button reflects Off, Connecting, On, or Error and opens the unified settings editor scrolled directly to Remote Control.
 - **Codex Companion: Pair Phone** remains available as an alternate entry point and uses the same focused settings section.
 - A one-time first-install message explains the new button. While the message is open, the button receives the warning highlight; dismissing it does not hide the permanent button.
@@ -107,10 +112,11 @@ The extension must not claim to fix this boundary. Relay restart and re-pair act
 - Manifest description and keywords cover Codex, remote control, ChatGPT Remote, Linux, headless, mobile, usage, completions, and reset credits. VS Code documents `displayName`, `description`, and keywords as search inputs.
 - The repository README serves both audiences and leads with a choice between Linux Remote and the extension.
 - `docs/marketplace-readme.md` is packaged as the Marketplace README. It stays extension-focused and links web visitors to the no-VS-Code Linux route.
+- Both public READMEs distinguish the quick Companion host from the more complete supported desktop-host + Linux-over-SSH path, including the fact that neither path can adopt a live VS Code Codex-panel chat.
 
 ## Verification
 
-- Unit tests validate status, pairing, expiration, claim, device-list response parsing, single-owner lease behavior, stale-lease recovery, race-free app-server restart/shutdown, Unix-socket WebSocket initialization, and private endpoint cleanup. They do not claim to validate phone/terminal mirroring.
+- Unit tests validate status, pairing, expiration, claim, device-list response parsing, single-owner lease behavior, ownership-verified stale-host recovery, full detached-process-group shutdown, transient relay-conflict recovery, race-free app-server restart/shutdown, Unix-socket WebSocket initialization, and private endpoint cleanup. They do not claim to validate phone/terminal mirroring.
 - Webview tests verify HTML escaping, fixed command names, device revocation controls, and that the opaque pairing artifact is not rendered.
 - The normal test suite compiles all TypeScript and runs every unit test.
 - A bounded live probe against the configured Codex binary must verify enable, status, environment reuse, device-list count, restart, and disable without printing identifiers or pairing values.

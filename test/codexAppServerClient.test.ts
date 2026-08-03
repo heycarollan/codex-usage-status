@@ -80,6 +80,116 @@ input.on("line", (line) => {
   }
 });
 
+test("pairs again after a durable disconnect and ephemeral reconnect", {
+  skip: process.platform === "win32"
+}, async () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-companion-reconnect-test-"));
+  const executable = join(root, "fake-codex");
+  const lifecycleLog = join(root, "remote-lifecycle.log");
+  const script = `#!/usr/bin/env node
+const fs = require("node:fs");
+const readline = require("node:readline");
+const logPath = ${JSON.stringify(lifecycleLog)};
+let status = "disabled";
+let pairing = 0;
+const input = readline.createInterface({ input: process.stdin });
+input.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (typeof message.id !== "number") return;
+  const reply = (result) => process.stdout.write(JSON.stringify({ id: message.id, result }) + "\\n");
+  if (message.method === "initialize") return reply({});
+  if (message.method === "remoteControl/status/read") {
+    return reply({ status, serverName: "test-host", installationId: "installation", environmentId: status === "connected" ? "environment" : null });
+  }
+  if (message.method === "remoteControl/enable") {
+    status = "connected";
+    fs.appendFileSync(logPath, "enable:" + String(message.params?.ephemeral) + "\\n");
+    return reply({ status, serverName: "test-host", installationId: "installation", environmentId: "environment" });
+  }
+  if (message.method === "remoteControl/disable") {
+    status = "disabled";
+    fs.appendFileSync(logPath, "disable:" + String(message.params?.ephemeral) + "\\n");
+    return reply({ status, serverName: "test-host", installationId: "installation", environmentId: null });
+  }
+  if (message.method === "remoteControl/pairing/start") {
+    pairing += 1;
+    fs.appendFileSync(logPath, "pair:" + pairing + "\\n");
+    return reply({ pairingCode: "artifact-" + pairing, manualPairingCode: "TEST-CODE-" + pairing, environmentId: "environment", expiresAt: 2000000000 });
+  }
+  process.stdout.write(JSON.stringify({ id: message.id, error: { code: -32601, message: "unsupported" } }) + "\\n");
+});
+`;
+  writeFileSync(executable, script, "utf8");
+  chmodSync(executable, 0o755);
+
+  const client = new CodexAppServerClient(executable, 2_000, { appendLine() {} });
+  try {
+    assert.equal((await client.enableRemoteControl(true)).status, "connected");
+    assert.equal((await client.startRemoteControlPairing()).manualPairingCode, "TEST-CODE-1");
+    assert.equal((await client.disableRemoteControl(false)).status, "disabled");
+    assert.equal((await client.enableRemoteControl(true)).status, "connected");
+    assert.equal((await client.startRemoteControlPairing()).manualPairingCode, "TEST-CODE-2");
+    await client.shutdown();
+
+    assert.deepEqual(readFileSync(lifecycleLog, "utf8").trim().split("\n"), [
+      "enable:true",
+      "pair:1",
+      "disable:false",
+      "enable:true",
+      "pair:2",
+      "disable:true"
+    ]);
+  } finally {
+    await client.shutdown();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dispose terminates the complete detached app-server process group", {
+  skip: process.platform === "win32"
+}, async () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-companion-dispose-test-"));
+  const executable = join(root, "fake-codex");
+  const childPidPath = join(root, "child.pid");
+  const script = `#!/usr/bin/env node
+const fs = require("node:fs");
+const { spawn } = require("node:child_process");
+const readline = require("node:readline");
+const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+fs.writeFileSync(${JSON.stringify(childPidPath)}, String(child.pid));
+const input = readline.createInterface({ input: process.stdin });
+input.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (typeof message.id !== "number") return;
+  if (message.method === "initialize") {
+    process.stdout.write(JSON.stringify({ id: message.id, result: {} }) + "\\n");
+  } else if (message.method === "remoteControl/status/read") {
+    process.stdout.write(JSON.stringify({ id: message.id, result: { status: "disabled", serverName: "test-host", installationId: null, environmentId: null } }) + "\\n");
+  }
+});
+`;
+  writeFileSync(executable, script, "utf8");
+  chmodSync(executable, 0o755);
+
+  const client = new CodexAppServerClient(executable, 2_000, { appendLine() {} });
+  try {
+    await client.getRemoteControlStatus();
+    const parentPid = client.getProcessIdentity()?.pid;
+    const childPid = Number(readFileSync(childPidPath, "utf8"));
+    assert.ok(parentPid);
+    assert.ok(isProcessAlive(parentPid!));
+    assert.ok(isProcessAlive(childPid));
+
+    client.dispose();
+    await waitForProcessesToExit([parentPid!, childPid], 2_000);
+    assert.equal(isProcessAlive(parentPid!), false);
+    assert.equal(isProcessAlive(childPid), false);
+  } finally {
+    client.dispose();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("uses a private Unix-socket app-server transport and cleans it up", {
   skip: process.platform === "win32"
 }, async () => {
@@ -170,6 +280,22 @@ server.listen(socketPath, () => fs.appendFileSync(logPath, "start\\n"));
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForProcessesToExit(pids: number[], timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline && pids.some(isProcessAlive)) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
 
 test("parses turn completion notifications", () => {
   const event = parseTurnCompletedEvent({

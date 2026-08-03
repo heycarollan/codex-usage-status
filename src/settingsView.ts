@@ -640,8 +640,9 @@ function renderRemoteControl(
         <ol>
           <li>Turn on Remote and pair your phone.</li>
           <li>Open Remote in ChatGPT and choose this computer.</li>
-          <li>Close and reopen a phone chat if it looks behind.</li>
+          <li>Start a new chat from Remote, then return to that Remote chat for follow-ups and approvals.</li>
         </ol>
+        <p><strong>Remote controls chats running on Companion's Codex host.</strong> It cannot take over a chat that is already running in the official VS Code Codex panel.</p>
         <p class="description">Keep this computer awake, online, and running VS Code.</p>
       </div>
     </div>

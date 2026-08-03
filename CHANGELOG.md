@@ -1,8 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.2.3 — Codex Companion V1
 
 - Add a simple setting to hide the Remote status-bar button without turning off Remote or unpairing devices.
+- Recover pairing after a crashed VS Code extension host leaves its Codex app-server registered online: record a random child-process ownership marker, reclaim only the verified stale Linux process group, and retry the relay while the prior registration clears.
+- Terminate the full detached app-server process group on normal disposal so a child cannot survive its wrapper and block the next pairing attempt.
+- Redact the Remote server name from Codex stderr and explain an actual competing-host conflict with an actionable message.
+- Keep Remote as the headline feature while stating that the phone connects to Companion's own Codex host and does not live-mirror the official VS Code panel or optional terminal.
+- Put the control boundary directly in Quick Setup and both public READMEs: start a new chat from Remote and continue that Remote chat; Companion cannot take over a chat already running in the official VS Code Codex panel.
+- Document the more complete supported path—ChatGPT desktop on macOS or Windows with the Linux project over SSH—and explain that Tailscale is an optional private SSH transport, not the phone relay or a bridge into existing VS Code chats.
+- Verify lifecycle compatibility with Codex CLI 0.144.1 and current stable 0.146.0; the allowlisted `remoteControl/*` methods remain public experimental schema, not a private Remote backend.
 
 ## 1.2.2 — Codex Companion V1
 

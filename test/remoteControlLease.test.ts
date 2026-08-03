@@ -62,3 +62,38 @@ test("reclaims a Remote Control lease after its owner exits", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("terminates the recorded stale app-server before taking over Remote", () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-companion-stale-host-test-"));
+  const lockPath = join(root, "remote.lock");
+  const terminated: Array<{ pid: number; token: string }> = [];
+  let firstOwnerAlive = true;
+  const first = new RemoteControlHostLease({
+    lockPath,
+    processId: 505,
+    token: "first-owner",
+    processExists: (pid) => pid === 505 && firstOwnerAlive
+  });
+  const replacement = new RemoteControlHostLease({
+    lockPath,
+    processId: 606,
+    token: "replacement-owner",
+    processExists: (pid) => pid === 606,
+    terminateAppServer: (process) => {
+      terminated.push(process);
+      return true;
+    }
+  });
+
+  try {
+    assert.equal(first.tryAcquire(), true);
+    first.recordAppServerProcess({ pid: 707, token: "app-server-owner" });
+    firstOwnerAlive = false;
+
+    assert.equal(replacement.tryAcquire(), true);
+    assert.deepEqual(terminated, [{ pid: 707, token: "app-server-owner" }]);
+  } finally {
+    replacement.release();
+    rmSync(root, { recursive: true, force: true });
+  }
+});

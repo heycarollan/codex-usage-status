@@ -1,4 +1,6 @@
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import * as readline from "node:readline";
 import WebSocket from "ws";
 import type {
@@ -45,6 +47,13 @@ export interface CodexAppServerClientOptions {
   sharedRuntimeRoot?: string;
 }
 
+export interface CodexAppServerProcessIdentity {
+  readonly pid: number;
+  readonly token: string;
+}
+
+const APP_SERVER_OWNER_ENV = "CODEX_COMPANION_APP_SERVER_OWNER";
+
 export interface CodexTurnCompletedEvent {
   threadId: string;
   turnId: string | null;
@@ -90,6 +99,8 @@ export class CodexAppServerClient {
   private initializePromise: Promise<void> | null = null;
   private readonly remoteControlSensitiveValues = new Set<string>();
   private readonly sharedEndpoint: SharedAppServerEndpoint | null;
+  private readonly processOwnerToken = randomBytes(18).toString("hex");
+  private remoteControlConflictDetected = false;
 
   constructor(
     private readonly codexExecutable: string,
@@ -105,6 +116,16 @@ export class CodexAppServerClient {
 
   isSharedHost(): boolean {
     return this.sharedEndpoint !== null;
+  }
+
+  getProcessIdentity(): CodexAppServerProcessIdentity | null {
+    return this.proc?.pid
+      ? { pid: this.proc.pid, token: this.processOwnerToken }
+      : null;
+  }
+
+  hasRemoteControlConflict(): boolean {
+    return this.remoteControlConflictDetected;
   }
 
   async getSharedHostEndpoint(): Promise<string | null> {
@@ -134,6 +155,7 @@ export class CodexAppServerClient {
 
   async enableRemoteControl(ephemeral = false): Promise<RemoteControlStatusSnapshot> {
     await this.ensureInitialized();
+    this.remoteControlConflictDetected = false;
     return this.rememberRemoteControlStatus(
       parseRemoteControlStatus(
         await this.request("remoteControl/enable", { ephemeral })
@@ -270,11 +292,10 @@ export class CodexAppServerClient {
     void waitForProcessExit(processToStop).then(() => {
       this.sharedEndpoint?.cleanup();
     });
-    requestProcessExit(processToStop, this.sharedEndpoint !== null);
-    const forceKillTimer = setTimeout(() => {
-      terminateProcessTree(processToStop);
+    terminateProcessTree(processToStop, "SIGTERM");
+    setTimeout(() => {
+      terminateProcessTree(processToStop, "SIGKILL");
     }, 250);
-    forceKillTimer.unref();
   }
 
   private ensureInitialized(): Promise<void> {
@@ -291,7 +312,7 @@ export class CodexAppServerClient {
       clientInfo: {
         name: "codex_usage_status_vscode",
         title: "Codex Companion",
-        version: "1.2.1"
+        version: "1.2.3"
       },
       capabilities: {
         experimentalApi: true
@@ -315,6 +336,10 @@ export class CodexAppServerClient {
       : ["app-server"];
     const proc = spawn(this.codexExecutable, args, {
       detached: process.platform !== "win32",
+      env: {
+        ...process.env,
+        [APP_SERVER_OWNER_ENV]: this.processOwnerToken
+      },
       stdio: ["pipe", "pipe", "pipe"]
     });
     const lineReader = readline.createInterface({ input: proc.stdout });
@@ -354,6 +379,9 @@ export class CodexAppServerClient {
     proc.stderr.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString().split(/\r?\n/)) {
         if (line.trim()) {
+          if (/Remote app server already online|HTTP error:\s*409 Conflict/i.test(line)) {
+            this.remoteControlConflictDetected = true;
+          }
           this.logger.appendLine(`[codex] ${this.redactRemoteControlMessage(line)}`);
         }
       }
@@ -467,8 +495,9 @@ export class CodexAppServerClient {
 
     const exited = waitForProcessExit(processToStop);
     requestProcessExit(processToStop, this.sharedEndpoint !== null);
-    if (!await waitWithTimeout(exited, 1_000)) {
-      terminateProcessTree(processToStop);
+    const parentExited = await waitWithTimeout(exited, 1_000);
+    terminateProcessTree(processToStop, "SIGTERM");
+    if (!parentExited) {
       await waitWithTimeout(exited, 1_000);
     }
 
@@ -650,6 +679,7 @@ export class CodexAppServerClient {
     status: RemoteControlStatusSnapshot
   ): RemoteControlStatusSnapshot {
     this.rememberRemoteControlValues(
+      status.serverName,
       status.installationId,
       status.environmentId
     );
@@ -714,23 +744,46 @@ function openWebSocket(url: string, handshakeTimeout: number): Promise<WebSocket
   });
 }
 
-function terminateProcessTree(proc: ChildProcessWithoutNullStreams): void {
-  if (proc.exitCode !== null || proc.signalCode !== null) {
-    return;
-  }
-
+function terminateProcessTree(
+  proc: ChildProcessWithoutNullStreams,
+  signal: NodeJS.Signals = "SIGTERM"
+): void {
   try {
     if (process.platform !== "win32" && proc.pid) {
-      process.kill(-proc.pid, "SIGTERM");
+      process.kill(-proc.pid, signal);
     } else {
-      proc.kill("SIGTERM");
+      if (proc.exitCode === null && proc.signalCode === null) {
+        proc.kill(signal);
+      }
     }
   } catch {
     try {
-      proc.kill("SIGTERM");
+      if (proc.exitCode === null && proc.signalCode === null) {
+        proc.kill(signal);
+      }
     } catch {
       // The process already exited.
     }
+  }
+}
+
+export function terminateOwnedAppServerProcess(
+  identity: CodexAppServerProcessIdentity
+): boolean {
+  if (process.platform !== "linux" || !Number.isSafeInteger(identity.pid) || identity.pid <= 0) {
+    return false;
+  }
+
+  try {
+    const environment = readFileSync(`/proc/${identity.pid}/environ`);
+    const marker = Buffer.from(`${APP_SERVER_OWNER_ENV}=${identity.token}\0`);
+    if (!environment.includes(marker)) {
+      return false;
+    }
+    process.kill(-identity.pid, "SIGTERM");
+    return true;
+  } catch {
+    return false;
   }
 }
 

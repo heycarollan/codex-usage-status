@@ -129,6 +129,8 @@ test("renders usage, reset details, actions, and every configurable setting", ()
   assert.match(html, /id="showRemoteStatusBarButton" type="checkbox" checked/);
   assert.match(html, /does not mirror the phone live/);
   assert.match(html, /Quick setup/);
+  assert.match(html, /Start a new chat from Remote/);
+  assert.match(html, /cannot take over a chat that is already running in the official VS Code Codex panel/);
   assert.doesNotMatch(html, /Full live updates|Share live updates/);
   assert.doesNotMatch(html, /app-server|OpenAI relay|Unix socket|Remote environment/i);
 

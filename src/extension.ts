@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import {
   CodexAppServerClient,
+  terminateOwnedAppServerProcess,
   type CodexThreadSnapshot,
   type CodexTurnCompletedEvent
 } from "./codexAppServerClient";
@@ -20,6 +21,7 @@ import {
   buildRemoteControlStatusBarPresentation,
   isPairingArtifactExpired,
   redactRemoteControlSecrets,
+  waitForRemoteControlConnection as waitForRemoteControlConnectionStatus,
   type RemoteControlClientDevice,
   type RemoteControlPairingArtifact,
   type RemoteControlStatusSnapshot
@@ -31,7 +33,7 @@ import { selectEarliestExpiringResetCredit, UsageService } from "./usageService"
 import { evaluateUsageAlerts, formatUsageAlertMessage, type UsageAlert } from "./usageNotifications";
 
 const THREAD_COMPLETION_POLL_LIMIT = 8;
-const REMOTE_CONTROL_CONNECT_ATTEMPTS = 20;
+const REMOTE_CONTROL_CONNECT_ATTEMPTS = 40;
 const REMOTE_CONTROL_CONNECT_DELAY_MS = 500;
 const REMOTE_CONTROL_PAIRING_POLL_MS = 3000;
 const REMOTE_CONTROL_ONBOARDING_KEY = "codexCompanion.remoteControlOnboarding.v1";
@@ -82,7 +84,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(output, statusItem, remoteStatusItem);
 
   settings = getSettings();
-  remoteControlLease = new RemoteControlHostLease();
+  remoteControlLease = new RemoteControlHostLease({
+    terminateAppServer: terminateOwnedAppServerProcess
+  });
   createClient();
   registerCommands(context);
   updateRemoteStatusItem();
@@ -190,7 +194,7 @@ async function showRemoteControlOnboarding(context: vscode.ExtensionContext): Pr
   updateRemoteStatusItem();
 
   const selection = await vscode.window.showInformationMessage(
-    "Use ChatGPT on your phone to control Codex from anywhere. Click Remote to pair your phone.",
+    "Use ChatGPT on your phone with a Companion-managed Codex host. Click Remote to pair your phone.",
     REMOTE_CONTROL_SETUP_ACTION,
     "Not now"
   );
@@ -686,6 +690,7 @@ async function reconcileRemoteControlStatus(
   }
 
   remoteControlOwnershipBlocked = false;
+  remoteControlLease.recordAppServerProcess(client.getProcessIdentity());
   if (!remoteControlPersistenceClearedForClient) {
     status = await client.disableRemoteControl(/*ephemeral*/ false);
     remoteControlPersistenceClearedForClient = true;
@@ -730,8 +735,10 @@ async function enableAndPairRemoteControl(): Promise<void> {
 
     if (status.status !== "connected") {
       throw new Error(
-        status.status === "errored"
-          ? "Remote could not connect."
+        status.status === "errored" && client.hasRemoteControlConflict()
+          ? "Another Codex Remote host is already online. Close it or turn off Remote there, then try again."
+          : status.status === "errored"
+            ? "Remote could not connect."
           : "Remote took too long to connect. Try again."
       );
     }
@@ -956,17 +963,19 @@ async function refreshRemoteControlClients(environmentId: string): Promise<void>
 async function waitForRemoteControlConnection(
   initialStatus: RemoteControlStatusSnapshot
 ): Promise<RemoteControlStatusSnapshot> {
-  let status = initialStatus;
-  for (let attempt = 0; attempt < REMOTE_CONTROL_CONNECT_ATTEMPTS; attempt += 1) {
-    if (status.status !== "connecting") {
-      return status;
+  return waitForRemoteControlConnectionStatus(
+    initialStatus,
+    () => client!.getRemoteControlStatus(),
+    {
+      attempts: REMOTE_CONTROL_CONNECT_ATTEMPTS,
+      delayMs: REMOTE_CONTROL_CONNECT_DELAY_MS,
+      pause: delay,
+      onStatus: (status) => {
+        applyRemoteControlStatus(status);
+        renderSettingsPanel();
+      }
     }
-    await delay(REMOTE_CONTROL_CONNECT_DELAY_MS);
-    status = await client!.getRemoteControlStatus();
-    applyRemoteControlStatus(status);
-    renderSettingsPanel();
-  }
-  return status;
+  );
 }
 
 function scheduleRemotePairingPoll(): void {

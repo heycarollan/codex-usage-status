@@ -1,8 +1,8 @@
 {
   "name": "codex-usage-status",
   "displayName": "Codex Companion: ChatGPT Remote & Usage",
-  "description": "Pair ChatGPT Remote with Codex in VS Code, control work from your phone, and see usage, completion alerts, chats, and reset credits.",
-  "version": "1.2.2",
+  "description": "Pair ChatGPT Remote with a Companion-managed Codex host in VS Code, plus usage, completion alerts, chats, and reset credits.",
+  "version": "1.2.3",
   "publisher": "synapticraft",
   "author": {
     "name": "Synapticraft",
@@ -196,7 +196,7 @@
         "codexUsage.remoteControlEnabled": {
           "type": "boolean",
           "default": false,
-          "description": "Let ChatGPT on your paired phone control Codex while VS Code is running."
+          "description": "Let ChatGPT on your paired phone use Companion's Codex host while VS Code is running."
         },
         "codexUsage.showRemoteStatusBarButton": {
           "type": "boolean",
@@ -215,7 +215,7 @@
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
     "test": "npm run compile && node --test dist/test/*.test.js",
-    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.2.2.vsix",
+    "package": "vsce package --readme-path docs/marketplace-readme.md --out dist/codex-usage-status-1.2.3.vsix",
     "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {

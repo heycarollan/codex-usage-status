@@ -49,6 +49,13 @@ export interface RemoteControlStatusBarState {
   onboardingHighlighted: boolean;
 }
 
+export interface RemoteControlConnectionWaitOptions {
+  attempts: number;
+  delayMs: number;
+  pause?: (delayMs: number) => Promise<void>;
+  onStatus?: (status: RemoteControlStatusSnapshot) => void;
+}
+
 export function parseRemoteControlStatus(value: unknown): RemoteControlStatusSnapshot {
   const record = asRecord(value);
   const status = readStatus(record.status);
@@ -109,6 +116,27 @@ export function isPairingArtifactExpired(
   return artifact.expiresAt * 1000 <= nowMs;
 }
 
+export async function waitForRemoteControlConnection(
+  initialStatus: RemoteControlStatusSnapshot,
+  readStatus: () => Promise<RemoteControlStatusSnapshot>,
+  options: RemoteControlConnectionWaitOptions
+): Promise<RemoteControlStatusSnapshot> {
+  const pause = options.pause ?? ((delayMs: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, delayMs)));
+  let status = initialStatus;
+
+  for (let attempt = 0; attempt < options.attempts; attempt += 1) {
+    if (status.status !== "connecting" && status.status !== "errored") {
+      return status;
+    }
+    await pause(options.delayMs);
+    status = await readStatus();
+    options.onStatus?.(status);
+  }
+
+  return status;
+}
+
 export function redactRemoteControlSecrets(
   message: string,
   sensitiveValues: ReadonlyArray<string | null | undefined>
@@ -127,8 +155,8 @@ export function buildRemoteControlStatusBarPresentation(
   if (state.onboardingHighlighted) {
     return {
       text: "$(remote) Set up Remote",
-      tooltip: "Pair your phone with Codex.",
-      accessibilityLabel: "Pair your phone with Codex",
+      tooltip: "Pair your phone with Companion's Codex host.",
+      accessibilityLabel: "Pair your phone with Companion's Codex host",
       warning: true
     };
   }

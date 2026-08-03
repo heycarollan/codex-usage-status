@@ -13,6 +13,13 @@ import { join } from "node:path";
 interface RemoteControlLeaseOwner {
   pid: number;
   token: string;
+  appServerPid?: number;
+  appServerToken?: string;
+}
+
+export interface RemoteControlAppServerProcess {
+  pid: number;
+  token: string;
 }
 
 export interface RemoteControlHostLeaseOptions {
@@ -20,6 +27,7 @@ export interface RemoteControlHostLeaseOptions {
   processId?: number;
   token?: string;
   processExists?: (pid: number) => boolean;
+  terminateAppServer?: (process: RemoteControlAppServerProcess) => boolean;
 }
 
 export class RemoteControlHostLease {
@@ -28,6 +36,7 @@ export class RemoteControlHostLease {
   private readonly processId: number;
   private readonly token: string;
   private readonly processExists: (pid: number) => boolean;
+  private readonly terminateAppServer: ((process: RemoteControlAppServerProcess) => boolean) | null;
   private acquired = false;
 
   constructor(options: RemoteControlHostLeaseOptions = {}) {
@@ -36,6 +45,7 @@ export class RemoteControlHostLease {
     this.processId = options.processId ?? process.pid;
     this.token = options.token ?? randomBytes(18).toString("hex");
     this.processExists = options.processExists ?? isProcessAlive;
+    this.terminateAppServer = options.terminateAppServer ?? null;
   }
 
   get owned(): boolean {
@@ -69,6 +79,13 @@ export class RemoteControlHostLease {
         return false;
       }
 
+      if (owner.appServerPid && owner.appServerToken) {
+        this.terminateAppServer?.({
+          pid: owner.appServerPid,
+          token: owner.appServerToken
+        });
+      }
+
       const stalePath = `${this.lockPath}.stale-${this.processId}-${this.token}`;
       try {
         renameSync(this.lockPath, stalePath);
@@ -81,6 +98,31 @@ export class RemoteControlHostLease {
     }
 
     return false;
+  }
+
+  recordAppServerProcess(process: RemoteControlAppServerProcess | null): void {
+    if (!this.acquired) {
+      return;
+    }
+
+    const owner = this.readOwner();
+    if (owner?.pid !== this.processId || owner.token !== this.token) {
+      this.acquired = false;
+      return;
+    }
+
+    writeFileSync(
+      this.ownerPath,
+      JSON.stringify({
+        pid: this.processId,
+        token: this.token,
+        ...(process ? {
+          appServerPid: process.pid,
+          appServerToken: process.token
+        } : {})
+      }),
+      { encoding: "utf8", mode: 0o600 }
+    );
   }
 
   release(): void {
@@ -104,9 +146,18 @@ export class RemoteControlHostLease {
   private readOwner(): RemoteControlLeaseOwner | null {
     try {
       const value = JSON.parse(readFileSync(this.ownerPath, "utf8")) as Partial<RemoteControlLeaseOwner>;
+      const appServerPid = value.appServerPid;
+      const appServerToken = value.appServerToken;
       return typeof value.pid === "number" && Number.isSafeInteger(value.pid) && value.pid > 0 &&
         typeof value.token === "string" && value.token.length > 0
-        ? { pid: value.pid, token: value.token }
+        ? {
+            pid: value.pid,
+            token: value.token,
+            ...(typeof appServerPid === "number" && Number.isSafeInteger(appServerPid) && appServerPid > 0 &&
+            typeof appServerToken === "string" && appServerToken.length > 0
+              ? { appServerPid, appServerToken }
+              : {})
+          }
         : null;
     } catch {
       return null;
